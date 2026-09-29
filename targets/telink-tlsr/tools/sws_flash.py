@@ -106,7 +106,20 @@ class Sws:
         self.flash_cmd(0xAB)                       # release flash from deep power-down
         self.flush()
 
+    def analog_write(self, reg: int, value: int) -> None:
+        """Write an analog register through the analog bus (0xb8 addr, 0xb9 data, 0xba ctrl), as
+        the SDK's analog_write() does. SWS is slow enough that the busy bit never needs polling."""
+        self.wr(0x00B8, bytes([reg]))
+        self.wr(0x00B9, bytes([value]))
+        self.wr(0x00BA, b"\x60")                  # FLD_ANA_CYC0 | FLD_ANA_RW: start a write
+        self.wr(0x00BA, b"\x00")
+        self.flush()
+
     def reset(self) -> None:
+        # The firmware's breadcrumb (analog 0x3b) survives every reset but a power cycle, and holds
+        # whatever step the MCU was in when SWS halted it. Clear it, or the next boot reports the
+        # flash as a watchdog hang.
+        self.analog_write(0x3B, 0x00)
         self.wr(0x006F, b"\x20")
         self.flush()
 

@@ -1147,8 +1147,10 @@ watchdog, breadcrumbs in MSD bytes 0..3). Evidence: the session transcript of 20
       orientation, black/white polarity, red plane, 8-pixel source offset — after two model settings
       for this glass (Y-increment scan, B/W RAM not inverted).
 - [x] **Active-low panel power** (PC5) switches the panel.
-- [ ] **Watchdog fires once per upload**: after `Done`, MSD reports `died_in 0x10` (hang > 4 s inside the
-      top-level `blt_sdk_main_loop`) and the reset counter increments. The image is unaffected; cause open.
+- [x] **No reset after upload** (two uploads, one forcing a refresh, advertising logged throughout,
+      counter unchanged). The earlier "watchdog after every upload" was a false positive: an SWS
+      flash halts and resets the MCU mid-loop, leaving breadcrumb `0x10`, which the next boot counted
+      as a hang. `sws_flash.py` now clears the breadcrumb (analog `0x3b`) before its reset; verified.
 - [ ] Encrypted session (auth + CCM) — the AES engine known-answer test has not run on silicon.
 - [ ] Any other ATC panel type; any other tag.
 

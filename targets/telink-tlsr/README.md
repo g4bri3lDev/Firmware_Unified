@@ -6,8 +6,8 @@ ESLs, TLSR8258/8359). Bare metal on Telink's `tc_ble_single_sdk`: no RTOS, no Kc
 superloop, like `efr32bg22-slc`.
 
 > **Status: runs on one tag.** A Hanshow 2.66" BWR ESL (ATC type 9) installs it over ATC's OTA,
-> takes a config and shows an uploaded image correctly. Open: a watchdog reset after every upload,
-> encrypted sessions untested on silicon, no other panel verified.
+> takes a config and shows an uploaded image correctly. Open: encrypted sessions untested on
+> silicon, no other panel verified, no boot screen.
 > `docs/HARDWARE_VERIFICATION_CHECKLIST.md` § `telink-tlsr` has the rows.
 
 ## Build
@@ -112,7 +112,8 @@ MSD bytes 0..3 (the config-driven area) carry `d1 <step> <resets> <build>`: the 
 the previous run died in and a watchdog-reset count, both kept in analog registers that only a power
 cycle clears. Steps: `0x01..0x03` ATT write callback, `0x04/0x05` around dispatch, `0x06` RX consumed,
 `0x07` radio send, `0x08/0x09` around the notify call, `0x10/0x11` around `blt_sdk_main_loop`,
-`0x20/0x21` link up/down.
+`0x20/0x21` link up/down. Only a watchdog reset should leave a non-zero step behind: `sws_flash.py`
+clears it before restarting the MCU, since an SWS halt otherwise looks like a hang in `0x10`.
 
 ## tc32 toolchain gaps
 
