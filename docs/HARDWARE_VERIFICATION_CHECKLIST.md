@@ -1125,3 +1125,33 @@ Merged in PR #90 (`4a61a7a`). Baseline before the change: ~2 mA idle while adver
       (2026-09-17, same test.)
 - [ ] Plug/unplug during BLE upload does not interrupt the upload; a serial-monitor log burst may
       drop characters but does not block firmware work; UF2 drag-and-drop remains functional.
+
+## `telink-tlsr` — Hanshow 2.66" BWR ATC tag (2026-09-29)
+
+First silicon for this target: a Hanshow ESL (ATC type 9, "266 HS BWR SSD") previously running
+ATC_BLE_OEPL fw 105, TLSR825x, powered from 3.3 V USB. Build `tlsr825x-diag2` (OD side `-O2`,
+watchdog, breadcrumbs in MSD bytes 0..3). Evidence: the session transcript of 2026-09-29.
+
+- [x] **Install via ATC_BLE_OEPL's BLE OTA** — accepted once the image carried Telink's CRC32 tail
+      (`tools/finish_image.py`); without it ATC ACKs the download (`00C9`) and keeps its own firmware.
+- [x] **Install via SWS, write-only** (`tools/sws_flash.py`, adapter TX through a resistor to PA7, no RX).
+- [x] **Boot, advertise** as `OD80A992`, MSD company `0x2446`, service UUID `0x2446`; re-advertises
+      after every disconnect.
+- [x] **Connect**: ATT MTU 247, DLE request after 1 s, subscribe to notifications.
+- [x] **`0x0043` FIRMWARE_VERSION** answered, plaintext.
+- [x] **`0x0040` CONFIG_READ** on a blank device → `ff 40 00 00`.
+- [x] **CONFIG_WRITE + CONFIG_READ round trip** (py-opendisplay `write_config` with `config=` to
+      skip interrogation): PanelIC 1031, 152x296, BWR, all six SPI pins, `pwr_pin` 21 read back intact;
+      config survives a firmware reflash (own sector at `0x7A000`).
+- [x] **Direct image upload + refresh**, `opendisplay upload --rotate 90`, zlib: correct image —
+      orientation, black/white polarity, red plane, 8-pixel source offset — after two model settings
+      for this glass (Y-increment scan, B/W RAM not inverted).
+- [x] **Active-low panel power** (PC5) switches the panel.
+- [ ] **Watchdog fires once per upload**: after `Done`, MSD reports `died_in 0x10` (hang > 4 s inside the
+      top-level `blt_sdk_main_loop`) and the reset counter increments. The image is unaffected; cause open.
+- [ ] Encrypted session (auth + CCM) — the AES engine known-answer test has not run on silicon.
+- [ ] Any other ATC panel type; any other tag.
+
+Found on the way, fixed, and guarded: tc32 at `-Os` emits broken switch jump tables (the first
+command hung the chip) — the OD side builds at `-O2` and `tools/check_jump_tables.py` fails the build
+on a table that points outside its function.
