@@ -50,16 +50,24 @@ void tlsr_port_gpio_write(uint8_t pin, bool level);
 bool tlsr_port_gpio_read(uint8_t pin);
 void tlsr_port_gpio_release(uint8_t pin);   /* input, floating: the lowest-leakage idle state */
 
+/* An LED pin between flashes. PA7 is also SWS, the wired-flashing line (and the blue LED on ATC
+ * boards): it goes back to its SWS function with the default 1 MOhm pull-up, so a tag stays
+ * flashable over the wire whenever no pattern is running. Every other pin is released. */
+#define TLSR_PORT_PIN_SWS       7u
+void tlsr_port_led_park(uint8_t pin);
+
 /* One pass of the BLE stack's main-loop work, for code that must block for a long time (a panel
  * refresh). Safe from inside od_tlsr_poll(): the only callbacks it can raise are the ATT write
  * (which only queues into od_rxq) and link up/down (which only set flags). */
 void tlsr_port_service_stack(void);
 
-/* Keep the MCU out of suspend while the panel is driven. tlsr_port_service_stack() runs the
- * stack's main loop, which otherwise sleeps until the next radio event -- up to an advertising
- * interval (500 ms) per call, turning a 1 ms busy-wait step or one rendered row into half a
- * second. Released when the panel powers down. */
-void tlsr_port_stay_awake(bool on);
+/* Keep the MCU out of suspend while the panel is driven or an LED pattern runs. The stack's main
+ * loop otherwise sleeps until the next radio event -- up to an advertising interval (500 ms) per
+ * pass, turning a 1 ms busy-wait step, one rendered row or a 100 ms LED step into half a second.
+ * One bit per holder, so neither can release the other's hold. */
+#define TLSR_PORT_AWAKE_PANEL   0x01u
+#define TLSR_PORT_AWAKE_LED     0x02u
+void tlsr_port_stay_awake(uint8_t holder, bool on);
 
 /* Breadcrumbs for field debugging without a log: the current step of the frame path lives in an
  * analog register that a watchdog reset does not clear (only a power cycle does), so after a hang

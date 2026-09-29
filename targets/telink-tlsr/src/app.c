@@ -98,9 +98,12 @@ static void task_terminate(u8 e, u8 *p, int n)
     od_tlsr_on_disconnect();
 }
 
-void tlsr_port_stay_awake(bool on)
+void tlsr_port_stay_awake(uint8_t holder, bool on)
 {
-    bls_pm_setSuspendMask(on ? SUSPEND_DISABLE : (SUSPEND_ADV | SUSPEND_CONN));
+    static uint8_t s_holders;
+
+    s_holders = on ? (uint8_t)(s_holders | holder) : (uint8_t)(s_holders & ~holder);
+    bls_pm_setSuspendMask(s_holders != 0u ? SUSPEND_DISABLE : (SUSPEND_ADV | SUSPEND_CONN));
 }
 
 bool tlsr_port_connected(void)

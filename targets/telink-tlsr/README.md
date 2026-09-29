@@ -41,7 +41,8 @@ offset 24, which is what both Telink OTA and ATC's `sendFw()` check before accep
 | Partial refresh | not offered (`partial_enabled = false`) |
 | Boot screen | shared `od_boot_screen`, drawn once per boot from the main loop; skipped when the config sets `CLEAR_ON_BOOT` or the previous run ended in a watchdog reset. Outcome in MSD byte 4 (`0xb2` drawn, `0xe1..0xe5` failing hook, `0xef` refused before any hook) |
 | DFU (`0x0051`) | arms the Telink OTA service for the current connection; see "Flashing" |
-| LED, buzzer, power-off, deep sleep | NACKed |
+| LED (`0x0073` / `0x0074`) | shared pattern runner (`od_led.c`) through `od_led_tlsr.c`; LED pins are outputs only while a pattern runs, and PA7 (blue on ATC boards, also SWS) goes back to SWS after every run. A short green blink at boot. ATC boards' LEDs are active-low: `led_flags` 0x7 |
+| Buzzer, power-off, deep sleep | NACKed |
 | Battery voltage | SAR ADC on `power_option.battery_sense_pin` (PB0-7, PC4, PC5; ATC tags use PB3), Telink's drive-high-and-measure method: once after the config loads, then every 60 s while idle and disconnected; the advert is republished when the 10 mV value changes |
 | Temperature | the panel controller's own sensor, read at the start of every refresh (SSD16xx: temperature-sensor read after a `0xB1` load update; UC81xx: TSC); readings outside -30..70 C or exactly 0 are discarded. The TLSR825x has no usable die sensor |
 | Watchdog | 4 s, fed from the main loop and while the stack is serviced |

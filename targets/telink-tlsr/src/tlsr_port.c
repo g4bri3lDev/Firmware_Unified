@@ -97,6 +97,19 @@ void tlsr_port_gpio_release(uint8_t pin)
     gpio_setup_up_down_resistor(pin_of(pin), PM_PIN_UP_DOWN_FLOAT);
 }
 
+void tlsr_port_led_park(uint8_t pin)
+{
+    if (pin != TLSR_PORT_PIN_SWS) {
+        tlsr_port_gpio_release(pin);
+        return;
+    }
+    gpio_set_output_en(GPIO_PA7, 0);
+    gpio_write(GPIO_PA7, 0);
+    gpio_set_func(GPIO_PA7, AS_SWIRE);
+    gpio_set_input_en(GPIO_PA7, 1);
+    gpio_setup_up_down_resistor(GPIO_PA7, PM_PIN_PULLUP_1M);
+}
+
 void tlsr_port_service_stack(void)
 {
     wd_clear();                        /* long waits (panel refresh) must not trip the watchdog */

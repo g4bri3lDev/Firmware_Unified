@@ -9,10 +9,10 @@
 #include "od_config_asm.h"
 
 #ifndef OD_TLSR_VERSION_MAJOR
-#define OD_TLSR_VERSION_MAJOR 0u
+#define OD_TLSR_VERSION_MAJOR 1u
 #endif
 #ifndef OD_TLSR_VERSION_MINOR
-#define OD_TLSR_VERSION_MINOR 1u
+#define OD_TLSR_VERSION_MINOR 0u
 #endif
 #ifndef OD_TLSR_VERSION_PATCH
 #define OD_TLSR_VERSION_PATCH 0u
@@ -23,6 +23,9 @@
 
 struct od_config_asm *od_tlsr_config_assembler(void);
 const struct od_config *od_tlsr_config(void);
+/* LED instance `instance` of the live config, or NULL. Mutable: its reserved[] holds the running
+ * LED pattern, whose mode nibble a config reload clears -- which is what stops a pattern. */
+struct LedConfig *od_tlsr_led(uint8_t instance);
 bool od_tlsr_config_save(const uint8_t *data, uint32_t len);
 bool od_tlsr_config_load(uint8_t *out, uint32_t *len);
 bool od_tlsr_config_clear(void);

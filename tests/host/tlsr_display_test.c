@@ -82,8 +82,11 @@ bool tlsr_port_gpio_read(uint8_t pin)
 void tlsr_port_delay_us(uint32_t us) { (void)us; }
 void tlsr_port_mac(uint8_t out[6]) { static const uint8_t m[6] = {0x92, 0xa9, 0x80, 1, 2, 3}; memcpy(out, m, 6); }
 void tlsr_port_service_stack(void) { }
-static int s_awake_depth;              /* stay_awake(true) must always be paired with false */
-void tlsr_port_stay_awake(bool on) { s_awake_depth += on ? 1 : -1; }
+static int s_awake_depth;              /* the panel's hold must always be released */
+void tlsr_port_stay_awake(uint8_t holder, bool on)
+{
+    if (holder == TLSR_PORT_AWAKE_PANEL) s_awake_depth = on ? 1 : 0;
+}
 
 /* ------------------------------------------------------------------ other link stubs --- */
 

@@ -1,12 +1,13 @@
 /* TLSR825x implementations of every shared command hook. The config path, reply-sealing rules and
  * unauthenticated-mutation policy are BG22's (targets/efr32bg22-slc/od_cmd_silabs.c); what differs
- * is what this target cannot do yet -- LED, buzzer, DFU, power-off, deep sleep -- and each of
+ * is what this target cannot do yet -- buzzer, power-off, deep sleep -- and each of
  * those answers an explicit NACK rather than a false ACK. */
 
 #include "od_cmd_app.h"
 
 #include "od_config_read.h"
 #include "od_dispatch.h"
+#include "od_led_tlsr.h"
 #include "od_reply.h"
 #include "od_session.h"
 #include "od_session_app.h"
@@ -204,16 +205,31 @@ bool od_cmd_allow_unauthenticated(uint16_t cmd)
     return false;
 }
 
+/* LED replies as BG22's: NACK code 1 for a missing instance byte, 2 for an unknown instance or a
+ * stop aimed at an instance that is not the one running. */
 od_cmd_result_t od_cmd_app_led_activate(const od_cmd_ctx_t *ctx, od_span_t body)
 {
-    (void)body;
-    return nack(ctx, RESP_LED_ACTIVATE_ACK, 2u);
+    uint8_t ok[] = { RESP_ACK, RESP_LED_ACTIVATE_ACK, 0u, 0u };
+
+    if (body.n < 1u) {
+        return nack(ctx, RESP_LED_ACTIVATE_ACK, 1u);
+    }
+    if (od_led_tlsr_activate(body.p[0], body.p + 1u, (uint16_t)(body.n - 1u)) != 0) {
+        return nack(ctx, RESP_LED_ACTIVATE_ACK, 2u);
+    }
+    (void)reply(ctx, ok, sizeof(ok));
+    return OD_CMD_OK;
 }
 
 od_cmd_result_t od_cmd_app_led_stop(const od_cmd_ctx_t *ctx, od_span_t body)
 {
-    (void)body;
-    return nack(ctx, RESP_LED_STOP_ACK, 2u);
+    uint8_t ok[] = { RESP_ACK, RESP_LED_STOP_ACK, 0u, 0u };
+
+    if ((body.n ? od_led_tlsr_stop(body.p[0], true) : od_led_tlsr_stop(0u, false)) != 0) {
+        return nack(ctx, RESP_LED_STOP_ACK, 2u);
+    }
+    (void)reply(ctx, ok, sizeof(ok));
+    return OD_CMD_OK;
 }
 
 od_cmd_result_t od_cmd_app_buzzer(const od_cmd_ctx_t *ctx, od_span_t body)

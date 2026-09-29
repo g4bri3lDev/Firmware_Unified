@@ -1,6 +1,7 @@
 /* OD-side application: config lifecycle, advertising payload, and the main-loop pump that feeds
  * received frames through shared dispatch. Called from the SDK side through tlsr_port.h. */
 
+#include "od_led_tlsr.h"
 #include "od_tlsr.h"
 
 #include "epd_port.h"
@@ -86,6 +87,11 @@ struct od_config_asm *od_tlsr_config_assembler(void)
 const struct od_config *od_tlsr_config(void)
 {
     return &s_cfg;
+}
+
+struct LedConfig *od_tlsr_led(uint8_t instance)
+{
+    return s_cfg.loaded && instance < s_cfg.led_count ? &s_cfg.leds[instance] : NULL;
 }
 
 bool od_tlsr_config_save(const uint8_t *data, uint32_t len)
@@ -234,6 +240,7 @@ void od_tlsr_init(void)
     }
     s_dynamic[4] = s_boot_pending ? 0xB0u : 0x00u;
     od_tlsr_publish_msd();
+    od_led_tlsr_boot_blink();
 }
 
 /* MSD byte 4: boot-screen outcome (0xB0 pending, 0xB1 started, 0xB2 drawn, 0xE1..0xE5 the first
@@ -312,6 +319,7 @@ void od_tlsr_poll(void)
     (void)od_hal_uptime_ms();          /* keep the tick extension ahead of its 268 s wrap */
 
     battery_poll();
+    od_led_tlsr_poll();
 
     if (s_boot_pending && !tlsr_port_connected()) {
         s_boot_pending = false;

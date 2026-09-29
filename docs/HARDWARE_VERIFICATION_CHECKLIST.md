@@ -1189,6 +1189,13 @@ ATC_04D611 (ATC fw 107, "200 HS BWY SSD", same pins as the 2.66"), on its own ba
 - [x] **Boot screen** upright and complete (MSD byte 4 `0xb2`).
 - [x] **Battery and temperature in the MSD** on a coin cell: 2.98-2.99 V, 23.0 C.
 - [x] **Wireless updates** (`ble_ota.py`), three.
+- [x] **LED patterns (`0x0073`)** on both tags, firmware 1.0.0 through py-opendisplay's stock
+      `activate_led`: red, green, blue in sequence, repeated. The LEDs are active-low: with
+      `led_flags` 0 a pattern lit all three (white) for its whole run; with 0x7 the colours are
+      right. The converter now emits 0x7 for ATC's "not inverted".
+- [ ] **SWS after a blue LED pattern** (PA7 handed back to SWS): unit-tested only; needs one
+      `sws_flash.py` run on the wired 2.66" after a pattern.
+- [ ] Boot blink (green) seen on the tags -- not confirmed by eye yet.
 - [ ] 2.66" with rotation 1 in its config (converter emits it; the tag still has rotation 0 and
       takes `--rotate 90`).
 

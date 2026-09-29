@@ -679,6 +679,19 @@ target_include_directories(od_tlsr_display_test PRIVATE
                            ${TLSR_SRC} ${TLSR_SRC}/epd)
 add_test(NAME tlsr_display COMMAND od_tlsr_display_test)
 
+# tlsr_led: targets/telink-tlsr's LED adapter over the real shared runner, against a fake port --
+# pins are outputs only while in use, PA7 goes back to SWS after every run, suspend is held only
+# while a pattern runs.
+add_executable(od_tlsr_led_test tlsr_led_test.c ${TLSR_SRC}/od_led_tlsr.c
+               ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/core/od_led.c)
+target_include_directories(od_tlsr_led_test PRIVATE
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/protocol
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/core
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/hal
+                           ${TLSR_SRC})
+add_test(NAME tlsr_led COMMAND od_tlsr_led_test)
+
 # tlsr_fmt: the target's own snprintf (the Telink SDK has none) against the host libc, renamed at
 # compile time so both fit in one binary. Floats are formatted with integer arithmetic only.
 add_executable(od_tlsr_fmt_test tlsr_fmt_test.c ${TLSR_SRC}/od_tlsr_fmt.c)

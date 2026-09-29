@@ -55,6 +55,7 @@ set(OD_TELINK_SHARED_SOURCES
     ${OD_SHARED_SOURCES_APP_XFER}
     ${OD_SHARED_SOURCES_APP_NFC}
     ${OD_SHARED_SOURCES_APP_BOOT}
+    ${OD_SHARED_SOURCES_APP_LED}
     ${OD_REPO_ROOT}/third_party/qrcode/qrcode.c)
 
 add_library(od_side OBJECT
@@ -67,6 +68,7 @@ add_library(od_side OBJECT
     ${SRC}/od_tlsr_rt.c
     ${SRC}/od_tlsr_fmt.c
     ${SRC}/od_xfer_tlsr.c
+    ${SRC}/od_led_tlsr.c
     # Panel drivers imported from Firmware_NRF52 (EPD/, 71b870c1); epd_io.c is their I/O here.
     ${SRC}/epd/UC81xx.c
     ${SRC}/epd/SSD16xx.c

@@ -79,7 +79,7 @@ static void panel_down(void)
     EPD_GPIO_Uninit();
     memset(&s_xfer, 0, sizeof(s_xfer));
     s_xfer.plane = -1;
-    tlsr_port_stay_awake(false);
+    tlsr_port_stay_awake(TLSR_PORT_AWAKE_PANEL, false);
 }
 
 void od_xfer_app_prepare_start(void)
@@ -127,7 +127,7 @@ static bool panel_start(const od_color_geometry_t *geometry)
     pins.rst  = d->reset_pin;
     pins.busy = d->busy_pin;
     pins.pwr  = cfg->system_config.pwr_pin;
-    tlsr_port_stay_awake(true);        /* released by panel_down() */
+    tlsr_port_stay_awake(TLSR_PORT_AWAKE_PANEL, true);    /* released by panel_down() */
     epd_io_configure(&pins);
     EPD_GPIO_Init();
 
