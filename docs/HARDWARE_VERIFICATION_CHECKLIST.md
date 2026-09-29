@@ -1175,6 +1175,23 @@ watchdog, breadcrumbs in MSD bytes 0..3). Evidence: the session transcript of 20
       wire does not power-cycle the chip — the idle-high TX line feeds it through the SWS resistor.
 - [ ] Any other ATC panel type; any other tag.
 
+### Second tag: Hanshow BWY, ATC type 5 (2026-09-29)
+
+ATC_04D611 (ATC fw 107, "200 HS BWY SSD", same pins as the 2.66"), on its own battery; now `ODED5A7C`.
+
+- [x] **Install from ATC over BLE with `tools/atc_install.py`** (no web page, no wires): `00C9`, boots
+      and advertises.
+- [x] **Config write + read back**: PanelIC 1032, 200x152, BWY, rotation 3.
+- [x] **Image upload, all four edges and both colours correct**, portrait image with no `--rotate`.
+      Took three rounds: driven as ATC's 152x200 the image was mirrored across a diagonal; with the
+      gate scan reversed it was a plain rotation but cropped to 152x152 with stale RAM below --
+      the glass is 200 sources x 152 gates.
+- [x] **Boot screen** upright and complete (MSD byte 4 `0xb2`).
+- [x] **Battery and temperature in the MSD** on a coin cell: 2.98-2.99 V, 23.0 C.
+- [x] **Wireless updates** (`ble_ota.py`), three.
+- [ ] 2.66" with rotation 1 in its config (converter emits it; the tag still has rotation 0 and
+      takes `--rotate 90`).
+
 Found on the way, fixed, and guarded: tc32 at `-Os` emits broken switch jump tables (the first
 command hung the chip) — the OD side builds at `-O2` and `tools/check_jump_tables.py` fails the build
 on a table that points outside its function.

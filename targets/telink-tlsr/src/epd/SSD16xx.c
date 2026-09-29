@@ -16,6 +16,12 @@ int8_t SSD16xx_ReadTemp(epd_model_t* epd) {
     return (int8_t)EPD_ReadByte();
 }
 
+/* Telink-target Hanshow glass: ATC reports black_invert for both, which on the 2.66" meant the
+ * B/W RAM must not be inverted. */
+static bool hanshow(const epd_model_t* epd) {
+    return epd->id == SSD16XX_HS_266_BWR || epd->id == SSD16XX_HS_200_BWY;
+}
+
 static uint8_t SSD16xx_GetXOffset(epd_model_t* epd) {
     switch (epd->id) {
         case SSD1619_022_BW:  case SSD1619_022_BWR:
@@ -36,6 +42,7 @@ static bool SSD16xx_YIncrease(epd_model_t* epd) {
         case SSD1619_013_BW:  case SSD1619_013_BWR:
         case SSD1619_022_LITE_BW:  case SSD1619_022_LITE_BWR:
         case SSD16XX_HS_266_BWR:   /* Telink target: gate scan runs the other way on this glass */
+        case SSD16XX_HS_200_BWY:   /* likewise; without it the image is mirrored across a diagonal */
             return true;
         default:
             return (epd->ic == DRV_IC_SSD1677);
@@ -74,7 +81,7 @@ void SSD16xx_Init(epd_model_t* epd) {
     EPD_Write(SSD16xx_TSENSOR_CTRL, 0x80);
     uint8_t ctrl1 = epd->color == COLOR_BWR ? 0x08 : 0x48;
     if (epd->id == SSD1619_013_BW || epd->id == SSD1619_013_BWR) ctrl1 |= 0x80;
-    if (epd->id == SSD16XX_HS_266_BWR) ctrl1 &= (uint8_t)~0x08;  /* Telink target: B/W RAM not inverted */
+    if (hanshow(epd)) ctrl1 &= (uint8_t)~0x08;  /* Telink target: B/W RAM not inverted */
     EPD_Write(SSD16xx_DISP_CTRL1, ctrl1, 0x00);
 
     SSD16xx_SetWindow(epd, 0, 0, epd->width, epd->height);
@@ -85,7 +92,7 @@ static void SSD16xx_Refresh(epd_model_t* epd) {
     EPD_DEBUG("temperature: %d", SSD16xx_ReadTemp(epd));
     uint8_t ctrl1 = epd->color == COLOR_BWR ? 0x08 : 0x48;
     if (epd->id == SSD1619_013_BW || epd->id == SSD1619_013_BWR) ctrl1 |= 0x80;
-    if (epd->id == SSD16XX_HS_266_BWR) ctrl1 &= (uint8_t)~0x08;  /* Telink target: B/W RAM not inverted */
+    if (hanshow(epd)) ctrl1 &= (uint8_t)~0x08;  /* Telink target: B/W RAM not inverted */
     EPD_Write(SSD16xx_DISP_CTRL1, ctrl1, 0x00);
     SSD16xx_Update(0xF7);
     SSD16xx_WaitBusy(UINT16_MAX);
@@ -135,6 +142,7 @@ static const epd_driver_t epd_drv_ssd16xx = {
 
 /* Telink-target addition: Hanshow 2.66" BWR (ATC type 9), 152 sources x 296 gates. */
 const epd_model_t epd_ssd16xx_hs_266_bwr = {SSD16XX_HS_266_BWR, COLOR_BWR, &epd_drv_ssd16xx, DRV_IC_SSD1619, 152, 296};
+const epd_model_t epd_ssd16xx_hs_200_bwy = {SSD16XX_HS_200_BWY, COLOR_BWR, &epd_drv_ssd16xx, DRV_IC_SSD1619, 200, 152};
 
 const epd_model_t epd_ssd1619_420_bwr = {SSD1619_420_BWR, COLOR_BWR, &epd_drv_ssd16xx, DRV_IC_SSD1619, 400, 300};
 const epd_model_t epd_ssd1619_420_bw = {SSD1619_420_BW, COLOR_BW, &epd_drv_ssd16xx, DRV_IC_SSD1619, 400, 300};

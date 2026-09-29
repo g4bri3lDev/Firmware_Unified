@@ -73,11 +73,24 @@ layout across the boundary without a diagnostic.
 ## Panels
 
 The display config's `panel_ic_type` must be in canonical PanelIC 1000-1030, the Firmware_NRF52
-model line (e.g. 1022 = `SSD1619_026_BWR`). Raw 1-31, which that firmware also accepted, is
-refused: canonically 1-51 are bb_epaper panels. The config's the config's `pixel_width`/`pixel_height` and `color_scheme` must match that model:
+model line (e.g. 1022 = `SSD1619_026_BWR`), or one of this target's two Hanshow additions below.
+Raw 1-31, which that firmware also accepted, is refused: canonically 1-51 are bb_epaper panels.
+The config's `pixel_width`/`pixel_height` and `color_scheme` must match that model:
 the table fixes the controller's RAM layout, so a mismatch is refused at transfer start rather
 than streamed into the wrong layout. Schemes: MONO for BW models, BWR or BWY for the two-plane
 models, BWRY for the JD796xx ones.
+
+Hanshow glass found on ATC tags, both provisional numbers until opendisplay-protocol assigns them:
+
+| PanelIC | Model | Native size | ATC type | Held | `rotation` |
+|---|---|---|---|---|---|
+| 1031 | `SSD16XX_HS_266_BWR` | 152 x 296, 8-pixel source offset | 9, "266 HS BWR SSD" | landscape | 1 (90) |
+| 1032 | `SSD16XX_HS_200_BWY` | 200 x 152 | 5, "200 HS BWY SSD" | portrait | 3 (270) |
+
+Native size is sources x gates. ATC reports the BWY glass as 152x200; driven that way only the
+152x152 overlap reached the glass. Both scan gates upward and write the B/W RAM uninverted.
+`rotation` makes the tag's natural face upright: hosts add it to the requested rotation and the
+boot screen is drawn with it, so images need no `--rotate`.
 
 Pins are `DisplayConfig`'s `data_pin`, `clk_pin`, `cs_pin`, `dc_pin`, `reset_pin`, `busy_pin`,
 plus `SystemConfig.pwr_pin` for a panel power switch, numbered as in `tlsr_port.h`
@@ -111,8 +124,9 @@ image byte lands after the right RAM command, once, followed by refresh and slee
   the old firmware running. Images must be 4 mod 16 bytes long (body padded to 16, plus the CRC):
   the OTA server aborts on any other length, and `finish_image.py` guarantees it. Keyed (encrypted)
   tags are not supported by the tool yet.
-- **From ATC_BLE_OEPL, wireless:** ATC's web uploader → "Select Firmware" → `opendisplay_tlsr.bin`.
-  One way: ATC copies the image over itself.
+- **From ATC_BLE_OEPL, wireless:** `uv run --with py-atc-ble-oepl tools/atc_install.py --device ADDRESS
+  build/telink-tlsr/opendisplay_tlsr.bin`, or ATC's web uploader → "Select Firmware". One way: ATC
+  copies the image over itself.
 - **Over SWS, wired:** `tools/sws_flash.py --port /dev/cu.usbserial-XXXX build/telink-tlsr/opendisplay_tlsr.bin`.
   USB-serial TX -> 1..1.8 kOhm -> SWS (PA7, also the blue LED line), GND, 3.3 V logic. Write-only:
   no RX needed, nothing is verified over the wire. Works on any firmware state.

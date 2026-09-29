@@ -50,7 +50,7 @@ static const struct DisplayConfig *display_cfg(void)
  * its silent fallback to a 4.2" UC8176. Refuse both here. */
 static bool panel_type_known(uint16_t t)
 {
-    return t >= 1000u && t <= 1031u;   /* 1031: SSD16XX_HS_266_BWR, provisional */
+    return t >= 1000u && t <= 1032u;   /* 1031 HS_266_BWR, 1032 HS_200_BWY: provisional */
 }
 
 /* The imported lookup only knows 1000-1030 (and falls back to a 4.2" UC8176 otherwise); past

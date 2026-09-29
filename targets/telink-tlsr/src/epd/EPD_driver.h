@@ -1,6 +1,6 @@
 /* Imported from Firmware_NRF52 EPD/EPD_driver.h at 71b870c12855b2bab4db11fdf1fb213818f3f3a8.
  * Changed here: the include block, EPD_DEBUG, the Arduino wrappers and the config loader, which
- * were nRF-specific, and one added model id (SSD16XX_HS_266_BWR). Existing definitions unchanged. */
+ * were nRF-specific, and two added model ids (SSD16XX_HS_266_BWR, SSD16XX_HS_200_BWY). Existing definitions unchanged. */
 #ifndef __EPD_DRIVER_H__
 #define __EPD_DRIVER_H__
 
@@ -165,6 +165,10 @@ typedef enum {
      * tags -- the same SSD16xx family as the Solum 2.6" but wired 152 sources x 296 gates.
      * PanelIC 1031, provisional until opendisplay-protocol assigns it. */
     SSD16XX_HS_266_BWR = 32,
+    /* Telink-target addition: Hanshow BWY (ATC type 5, reported there as 152x200), wired 200
+     * sources x 152 gates with the source axis along the glass's long side. Yellow is the second
+     * plane, as red is on the BWR models. PanelIC 1032, provisional. */
+    SSD16XX_HS_200_BWY = 33,
 } epd_model_id_t;
 
 struct epd_driver;

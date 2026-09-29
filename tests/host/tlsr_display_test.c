@@ -325,6 +325,46 @@ static void test_hanshow_266_window(void)
     CHECK(!begin());
 }
 
+/* Hanshow BWY (ATC type 5): 200 sources x 152 gates, no offset, yellow in the second plane. ATC
+ * reports it as 152x200; driven that way, only the 152x152 overlap of the two layouts reached glass. */
+static void test_hanshow_200_bwy_window(void)
+{
+    bool completed = false;
+    long xpos, ram1, ram2;
+    uint32_t plane = (200u / 8u) * 152u;
+
+    CASE("Hanshow BWY: 25-byte source window at offset 0, yellow as the second plane");
+    set_panel(1032u, 200u, 152u, OD_COLOR_SCHEME_BWY);
+    s_busy_idle_level = false;
+    fill(2u * plane, 7u);
+    CHECK(begin());
+    CHECK(stream(2u * plane, 244u));
+    CHECK(od_xfer_app_refresh(0u, &completed));
+    CHECK(completed);
+
+    xpos = find_cmd(SSD16xx_RAM_XPOS, 0u);
+    CHECK(xpos >= 0 && s_log[xpos + 1].b == 0x00u && s_log[xpos + 2].b == 0x18u);
+    CHECK(find_cmd(SSD16xx_GDO_CTR, 0u) >= 0 && s_log[find_cmd(SSD16xx_GDO_CTR, 0u) + 1].b == 152u);
+    /* Verified on the tag: Y increments (else mirrored); B/W polarity as on the 2.66". */
+    CHECK(find_cmd(SSD16xx_ENTRY_MODE, 0u) >= 0 && s_log[find_cmd(SSD16xx_ENTRY_MODE, 0u) + 1].b == 0x03u);
+    CHECK(find_cmd(SSD16xx_DISP_CTRL1, 0u) >= 0 && s_log[find_cmd(SSD16xx_DISP_CTRL1, 0u) + 1].b == 0x00u);
+    ram1 = find_cmd(SSD16xx_WRITE_RAM1, 0u);
+    ram2 = find_cmd(SSD16xx_WRITE_RAM2, 0u);
+    CHECK(ram1 >= 0 && ram2 > ram1);
+    CHECK(data_after(ram1, NULL, s_got, sizeof(s_got)) == plane);
+    CHECK(memcmp(s_got, s_img, plane) == 0);
+    CHECK(data_after(ram2, NULL, s_got, sizeof(s_got)) == plane);
+    CHECK(memcmp(s_got, s_img + plane, plane) == 0);
+
+    CASE("the same glass declared BWR is still accepted (both are two-plane)");
+    set_panel(1032u, 200u, 152u, OD_COLOR_SCHEME_BWR);
+    CHECK(begin());
+
+    CASE("ATC's transposed 152x200 is refused");
+    set_panel(1032u, 152u, 200u, OD_COLOR_SCHEME_BWY);
+    CHECK(!begin());
+}
+
 /* The boot screen through the real hooks, drivers and SPI, on the Hanshow 2.66" config. */
 static void test_boot_screen(void)
 {
@@ -361,7 +401,7 @@ static void test_refusals(void)
     bool completed = true;
 
     CASE("unknown panel type refused before any pin moves");
-    set_panel(1032u, 400u, 300u, OD_COLOR_SCHEME_BWR);
+    set_panel(1033u, 400u, 300u, OD_COLOR_SCHEME_BWR);
     CHECK(!od_xfer_app_panel_info(&info));
     CHECK(s_log_n == 0u);
 
@@ -405,6 +445,7 @@ int main(void)
     test_plane_boundary_in_one_write();
     test_active_low_panel_power();
     test_hanshow_266_window();
+    test_hanshow_200_bwy_window();
     test_boot_screen();
     test_refusals();
     return OD_CHECK_REPORT_NONEMPTY("tlsr_display", 40u);
