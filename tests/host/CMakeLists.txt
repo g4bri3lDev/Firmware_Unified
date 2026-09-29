@@ -646,6 +646,35 @@ add_test(NAME session COMMAND od_session_test)
 add_executable(od_aes128_test aes128_test.c aes128.c)
 add_test(NAME aes128 COMMAND od_aes128_test)
 
+# tlsr_aes_modes: the CMAC/CCM modes targets/telink-tlsr builds over the TLSR825x AES-ECB engine,
+# checked against RFC 4493/3610 vectors and differentially against session_ccm_reference.inc.
+# The host AES core stands in for the engine, so this proves the modes, not the engine driver.
+add_executable(od_tlsr_aes_modes_test tlsr_aes_modes_test.c aes128.c
+               ${CMAKE_CURRENT_SOURCE_DIR}/../../targets/telink-tlsr/src/od_aes_modes.c)
+target_include_directories(od_tlsr_aes_modes_test PRIVATE
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../targets/telink-tlsr/src)
+add_test(NAME tlsr_aes_modes COMMAND od_tlsr_aes_modes_test)
+
+# tlsr_display: targets/telink-tlsr's image path end to end -- od_xfer hooks, the panel drivers
+# imported from Firmware_NRF52, and the bit-banged SPI -- against a fake port that decodes the wire
+# back into command/data bytes. The imported drivers keep their unused `epd` parameters, so
+# -Wunused-parameter is relaxed for those files only.
+set(TLSR_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../targets/telink-tlsr/src)
+add_executable(od_tlsr_display_test tlsr_display_test.c
+               ${TLSR_SRC}/od_xfer_tlsr.c
+               ${TLSR_SRC}/epd/UC81xx.c ${TLSR_SRC}/epd/SSD16xx.c
+               ${TLSR_SRC}/epd/epd_models.c ${TLSR_SRC}/epd/epd_io.c
+               ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/core/od_color.c)
+set_source_files_properties(${TLSR_SRC}/epd/UC81xx.c ${TLSR_SRC}/epd/SSD16xx.c
+                            PROPERTIES COMPILE_OPTIONS -Wno-unused-parameter)
+target_include_directories(od_tlsr_display_test PRIVATE
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/protocol
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/core
+                           ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/hal
+                           ${TLSR_SRC} ${TLSR_SRC}/epd)
+add_test(NAME tlsr_display COMMAND od_tlsr_display_test)
+
 # advert: the 16-byte MSD encoder. DIFFERENTIAL -- the test carries an independent
 # transcription of the shipped Zephyr/Silabs byte assembly and sweeps both encoders over the
 # input space, because this is a promotion of bytes three targets already broadcast. A vector

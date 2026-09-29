@@ -1,0 +1,311 @@
+/* OD-side application: config lifecycle, advertising payload, and the main-loop pump that feeds
+ * received frames through shared dispatch. Called from the SDK side through tlsr_port.h. */
+
+#include "od_tlsr.h"
+
+#include "epd_port.h"
+#include "od_advert.h"
+#include "od_config.h"
+#include "od_config_read.h"
+#include "od_config_store.h"
+#include "od_core.h"
+#include "od_dispatch.h"
+#include "od_hal_time.h"
+#include "od_rxq.h"
+#include "od_rxq_app.h"
+#include "od_session.h"
+#include "od_session_app.h"
+#include "od_txq.h"
+#include "tlsr_port.h"
+
+#include <stddef.h>
+#include <string.h>
+
+/* Three failed authentications close the link, as on BG22. */
+#define OD_AUTH_ABUSE_LIMIT 3u
+
+/* ONE OBJECT IS BOTH the chunked-write reassembly state and the config-store workspace: the
+ * assembler's four state words fill exactly the 16-byte record header and both put their byte
+ * array at offset 16. Same arrangement as targets/efr32bg22-slc/opendisplay_config_storage.c,
+ * with the same ordering obligations: capture the length before a save, refuse before the header
+ * write, and reset the assembler immediately after. */
+typedef union {
+    struct od_config_asm assembler;
+    uint8_t              record[OD_CONFIG_STORE_MAX_RECORD];
+} od_config_work_t;
+
+typedef char od_asm_is_record[(sizeof(struct od_config_asm) == OD_CONFIG_STORE_MAX_RECORD) ? 1 : -1];
+
+static od_config_work_t s_work;
+static struct od_config s_cfg;
+static struct od_session s_session;
+
+/* Link identity: bumped on every connect, stamped into each RX slot and reply, so a frame or a
+ * reply belonging to a departed central can never run or be delivered on the next one. */
+static volatile uint32_t s_link_tag;
+static volatile bool     s_subscribed;
+static volatile bool     s_close_pending;
+static uint8_t           s_auth_abuse;
+static uint8_t           s_msd_counter;
+static bool              s_reboot_flag = true;
+
+/* Diagnostic block in the MSD's config-driven area (bytes 0..3 of od_advert_inputs.dynamic):
+ * marker, the frame-path step the previous run died in (tlsr_port.h), the persistent
+ * watchdog-reset count, and a build tag. Read it with any BLE scanner. */
+#define DIAG_MARKER     0xD1u
+#define DIAG_BUILD_TAG  0x02u
+static uint8_t           s_dynamic[OD_ADVERT_DYNAMIC_LEN];
+static uint8_t           s_msd[OD_ADVERT_MSD_LEN];
+
+/* --------------------------------------------------------------------------- config --- */
+
+struct od_config_asm *od_tlsr_config_assembler(void)
+{
+    return &s_work.assembler;
+}
+
+const struct od_config *od_tlsr_config(void)
+{
+    return &s_cfg;
+}
+
+bool od_tlsr_config_save(const uint8_t *data, uint32_t len)
+{
+    enum od_config_store_result rc;
+
+    if (data == NULL || len > OD_CONFIG_MAX_SIZE || od_config_store_init() != OD_CONFIG_STORE_OK) {
+        return false;
+    }
+    rc = od_config_store_save(s_work.record, sizeof(s_work.record), data, len);
+    od_config_asm_reset(&s_work.assembler);      /* its state words are the header now */
+    return rc == OD_CONFIG_STORE_OK;
+}
+
+bool od_tlsr_config_load(uint8_t *out, uint32_t *len)
+{
+    return od_config_store_init() == OD_CONFIG_STORE_OK &&
+           od_config_store_load(out, len) == OD_CONFIG_STORE_OK;
+}
+
+bool od_tlsr_config_clear(void)
+{
+    return od_config_store_clear() == OD_CONFIG_STORE_OK;
+}
+
+/* Re-parse from flash into s_cfg. Reads through the assembler's buffer, so it must only run
+ * when no chunked write is in flight: at boot, and straight after a save or clear reset it. */
+void od_tlsr_config_reload(void)
+{
+    uint32_t len = OD_CONFIG_MAX_SIZE;
+    struct od_config_report report;
+
+    od_config_reset(&s_cfg);
+    if (s_work.assembler.active || !od_tlsr_config_load(s_work.assembler.buffer, &len)) {
+        return;
+    }
+    (void)od_config_parse(&s_cfg, od_span_make(s_work.assembler.buffer, len), &report);
+    epd_io_park_power(s_cfg.system_config.pwr_pin);
+}
+
+/* ------------------------------------------------------------------------ advertising --- */
+
+void od_tlsr_publish_msd(void)
+{
+    struct od_advert_inputs adv;
+
+    /* Battery and die temperature are not measured yet; the wire says 0 V and -40 C rather than
+     * inventing a value. */
+    memset(&adv, 0, sizeof(adv));
+    adv.dynamic = s_dynamic;
+    adv.chip_temperature_c = OD_ADVERT_TEMP_MIN_C;
+    adv.reboot_flag = s_reboot_flag;
+    adv.loop_counter = s_msd_counter;
+    od_advert_build(&adv, s_msd);
+    s_msd_counter = od_advert_advance_counter(s_msd_counter);
+    tlsr_port_set_adv_msd(s_msd);
+}
+
+void od_tlsr_copy_msd(uint8_t out[16])
+{
+    memcpy(out, s_msd, OD_ADVERT_MSD_LEN);
+}
+
+/* -------------------------------------------------------------------- link identity --- */
+
+uint32_t od_tlsr_link_tag(void)
+{
+    return s_link_tag;
+}
+
+bool od_tlsr_notify_subscribed(void)
+{
+    return s_subscribed;
+}
+
+static bool rx_tag_is_live(uint32_t tag, void *context)
+{
+    (void)context;
+    return tlsr_port_connected() && tag == s_link_tag;
+}
+
+/* ------------------------------------------------------------------ SDK-side callbacks --- */
+
+void od_tlsr_init(void)
+{
+    uint8_t resets = 0u;
+    uint8_t died_in = tlsr_port_crumb_boot(&resets);
+
+    s_dynamic[0] = DIAG_MARKER;
+    s_dynamic[1] = died_in;
+    s_dynamic[2] = resets;
+    s_dynamic[3] = DIAG_BUILD_TAG;
+    od_session_init(&s_session, 0u);
+    od_config_asm_reset(&s_work.assembler);
+    od_tlsr_config_reload();
+    od_core_reset();
+    od_tlsr_publish_msd();
+}
+
+void od_tlsr_on_connect(void)
+{
+    s_link_tag++;
+    s_subscribed = false;
+    s_auth_abuse = 0u;
+}
+
+void od_tlsr_on_disconnect(void)
+{
+    s_subscribed = false;
+    s_link_tag++;                      /* strands anything the departed central left queued */
+    s_close_pending = true;            /* the loop owns shared state; reset it there */
+}
+
+void od_tlsr_on_notify_enabled(bool enabled)
+{
+    s_subscribed = enabled;
+}
+
+/* ATT write callback context: queue only. Dispatch runs from od_tlsr_poll(), because it may have
+ * to defer a frame, and a deferred frame needs somewhere to wait that the stack does not own. */
+void od_tlsr_on_write(const uint8_t *data, uint16_t len)
+{
+    (void)od_rxq_push(data, len, s_link_tag);
+    tlsr_port_crumb(2);
+}
+
+void od_core_frame_done(const od_reply_t *rp, od_frame_outcome_t outcome)
+{
+    od_frame_policy_t p = od_frame_policy(outcome);
+
+    if (rp == NULL || rp->origin != OD_ORIGIN_BLE || rp->tag != s_link_tag) {
+        return;
+    }
+    if (p.stamp_activity) {
+        od_session_touch(&s_session, od_hal_uptime_ms());
+    }
+    if (p.reset_abuse) {
+        s_auth_abuse = 0u;
+    }
+    if (p.increment_abuse && s_auth_abuse < 0xFFu && ++s_auth_abuse >= OD_AUTH_ABUSE_LIMIT) {
+        tlsr_port_disconnect();
+    }
+}
+
+/* The main-loop pump, in the order targets/nordic-zephyr/src/opendisplay_pipe.c documents:
+ * cleanup, TX, config-read producer, stale discard, dispatch, consume-unless-deferred, TX. TX
+ * goes before dispatch because dispatch reserves reply capacity before it decrypts; a frame
+ * deferred after decrypt would be refused as a replay when re-offered. */
+void od_tlsr_poll(void)
+{
+    uint8_t drained;
+
+    (void)od_hal_uptime_ms();          /* keep the tick extension ahead of its 268 s wrap */
+
+    if (s_close_pending) {
+        s_close_pending = false;
+        od_core_reset();
+        od_config_asm_reset(&s_work.assembler);
+        od_session_init(&s_session, 0u);
+    }
+
+    for (drained = 0u; drained < OD_RXQ_SLOTS; ++drained) {
+        od_rxq_item_t *item;
+        od_reply_t rp;
+        od_frame_outcome_t outcome;
+
+        (void)od_txq_process();
+        (void)od_config_read_pump();
+        (void)od_rxq_discard_stale(rx_tag_is_live, NULL);
+        item = od_rxq_peek();
+        if (item == NULL) {
+            break;
+        }
+        if (!rx_tag_is_live(item->tag, NULL)) {
+            od_rxq_consume();
+            continue;
+        }
+        rp.origin = OD_ORIGIN_BLE;
+        rp.tag = item->tag;
+        tlsr_port_crumb(4);
+        outcome = od_dispatch_frame(&rp, od_span_make(item->data, item->len));
+        tlsr_port_crumb(5);
+        od_core_frame_done(&rp, outcome);
+        if (!od_frame_policy(outcome).consume_rx) {
+            break;
+        }
+        od_rxq_consume();
+        tlsr_port_crumb(6);
+        s_reboot_flag = false;
+    }
+    (void)od_txq_process();
+}
+
+/* ------------------------------------------------------------------------ session app --- */
+
+struct od_session *od_session_app_state(void)
+{
+    return &s_session;
+}
+
+const struct SecurityConfig *od_session_app_security(void)
+{
+    return s_cfg.security_loaded ? &s_cfg.security : NULL;
+}
+
+uint32_t od_session_app_now_ms(void)
+{
+    return od_hal_uptime_ms();
+}
+
+void od_session_app_device_id(uint8_t out[OD_SESSION_DEVICE_ID_LEN])
+{
+    uint8_t mac[6];
+
+    tlsr_port_mac(mac);
+    out[0] = mac[3];
+    out[1] = mac[2];
+    out[2] = mac[1];
+    out[3] = mac[0];
+}
+
+void od_session_app_report(enum od_session_app_op op, int result, uint16_t cmd,
+                           const struct od_session_report *report)
+{
+    (void)op;
+    (void)result;
+    (void)cmd;
+    (void)report;
+}
+
+/* ---------------------------------------------------------------------------- rxq app --- */
+
+bool od_rxq_app_encryption_enabled(void)
+{
+    return od_session_security_enabled(od_session_app_security());
+}
+
+bool od_rxq_app_quiet(uint16_t cmd)
+{
+    (void)cmd;
+    return true;
+}
