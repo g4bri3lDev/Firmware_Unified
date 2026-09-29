@@ -247,6 +247,8 @@ const epd_model_t epd_jd79665_750_bwry = {JD79665_750_BWRY, COLOR_BWRY, &epd_drv
 const epd_model_t epd_jd79665_583_bwry = {JD79665_583_BWRY, COLOR_BWRY, &epd_drv_uc81xx, DRV_IC_JD79665, 648, 480};
 const epd_model_t epd_uc8151_029_bw = {UC8151_029_BW, COLOR_BW, &epd_drv_uc81xx, DRV_IC_UC8151, 168, 384};
 const epd_model_t epd_uc8151_029_bwr = {UC8151_029_BWR, COLOR_BWR, &epd_drv_uc81xx, DRV_IC_UC8151, 168, 384};
+/* Telink-target addition: Hanshow Nebular 350Y-N BWY (see EPD_driver.h). */
+const epd_model_t epd_uc8151_hs_350_bwy = {UC8151_HS_350_BWY, COLOR_BWR, &epd_drv_uc81xx, DRV_IC_UC8151, 184, 384};
 const epd_model_t epd_uc8151_027_bw = {UC8151_027_BW, COLOR_BW, &epd_drv_uc81xx, DRV_IC_UC8151, 200, 300};
 const epd_model_t epd_uc8151_027_bwr = {UC8151_027_BWR, COLOR_BWR, &epd_drv_uc81xx, DRV_IC_UC8151, 200, 300};
 const epd_model_t epd_ucvar43_430_bw = {UCVAR43_430_BW, COLOR_BW, &epd_drv_uc81xx, DRV_IC_UCVAR43, 152, 522};

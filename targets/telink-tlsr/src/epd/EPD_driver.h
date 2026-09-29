@@ -1,6 +1,6 @@
 /* Imported from Firmware_NRF52 EPD/EPD_driver.h at 71b870c12855b2bab4db11fdf1fb213818f3f3a8.
  * Changed here: the include block, EPD_DEBUG, the Arduino wrappers and the config loader, which
- * were nRF-specific, and two added model ids (SSD16XX_HS_266_BWR, SSD16XX_HS_200_BWY). Existing definitions unchanged. */
+ * were nRF-specific, and three added model ids (SSD16XX_HS_266_BWR, SSD16XX_HS_200_BWY, UC8151_HS_350_BWY). Existing definitions unchanged. */
 #ifndef __EPD_DRIVER_H__
 #define __EPD_DRIVER_H__
 
@@ -169,6 +169,9 @@ typedef enum {
      * sources x 152 gates with the source axis along the glass's long side. Yellow is the second
      * plane, as red is on the BWR models. PanelIC 1032, provisional. */
     SSD16XX_HS_200_BWY = 33,
+    /* Telink-target addition: Hanshow Nebular 350Y-N (ATC type 1, "350 HS BWY UC"), UC8151-class,
+     * 184 sources x 384 gates, yellow as the second plane. PanelIC 1033, provisional. */
+    UC8151_HS_350_BWY = 34,
 } epd_model_id_t;
 
 struct epd_driver;

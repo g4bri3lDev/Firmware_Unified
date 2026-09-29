@@ -1196,6 +1196,20 @@ ATC_04D611 (ATC fw 107, "200 HS BWY SSD", same pins as the 2.66"), on its own ba
 - [ ] **SWS after a blue LED pattern** (PA7 handed back to SWS): unit-tested only; needs one
       `sws_flash.py` run on the wired 2.66" after a pattern.
 - [ ] Boot blink (green) seen on the tags -- not confirmed by eye yet.
+### Third tag: Hanshow Nebular 350Y-N, ATC type 1 (2026-09-29)
+
+A tag whose coin cell had died, cell disconnected and powered from the adapter's 3.3 V; now `OD4D1AC2`.
+
+- [x] **Revived over SWS**: it neither redrew nor advertised on power-up. `sws_flash.py` wrote ATC's
+      firmware back and it advertised as ATC_02AF11 -- with its stored settings empty (type 0, no
+      pins). Setting ATC type 1 (0x0004) restored the type's pins and ATC drew on the glass.
+- [x] Found: this ATC build inserts a GUI-rotation byte before the pinouts; py-atc-ble-oepl read every
+      pin one byte off (reset and cs both 0x1000). Fixed there; the pins match the other Hanshow tags.
+- [x] **Install from ATC with `tools/atc_install.py`** (its first run from the repo): `00C9`.
+- [x] **Config + image**: PanelIC 1033, 184x384, BWY on the imported UC8151 settings; colours,
+      mirroring and all edges correct first time. Held landscape: rotation 1.
+- [x] **Boot screen** (`0xb2`), **battery / temperature** in the MSD (3.23 V on 3.3 V, 21.0 C),
+      **LED pattern** red/green/blue.
 - [ ] 2.66" with rotation 1 in its config (converter emits it; the tag still has rotation 0 and
       takes `--rotate 90`).
 

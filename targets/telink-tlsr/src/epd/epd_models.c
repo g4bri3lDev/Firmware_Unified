@@ -1,6 +1,6 @@
 /* Model table and lookups, copied from Firmware_NRF52 EPD/EPD_driver.c (lines 264-364) at
  * 71b870c12855b2bab4db11fdf1fb213818f3f3a8. The rest of that file is the nRF GPIO/SPI layer, which
- * epd_io.c replaces. Only change: the Telink-target models epd_ssd16xx_hs_266_bwr and epd_ssd16xx_hs_200_bwy are registered. */
+ * epd_io.c replaces. Only change: the Telink-target models epd_ssd16xx_hs_266_bwr, epd_ssd16xx_hs_200_bwy and epd_uc8151_hs_350_bwy are registered. */
 #include "EPD_driver.h"
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
@@ -39,6 +39,7 @@ extern epd_model_t epd_jd79665_750_bwry;
 extern epd_model_t epd_jd79665_583_bwry;
 extern epd_model_t epd_ssd16xx_hs_266_bwr;   /* Telink-target additions */
 extern epd_model_t epd_ssd16xx_hs_200_bwy;
+extern epd_model_t epd_uc8151_hs_350_bwy;
 
 static epd_model_t* epd_models[] = {
     &epd_uc8176_420_bw,    &epd_uc8176_420_bwr,   &epd_uc8159_750_bw,    &epd_uc8159_750_bwr,  &epd_uc8179_750_bw,
@@ -50,7 +51,7 @@ static epd_model_t* epd_models[] = {
     &epd_ssd1619_022_lite_bw, &epd_ssd1619_022_lite_bwr,
     &epd_ssd1677_750_bwr, &epd_ssd1677_750_bw,
     &epd_jd79668_420_bwry, &epd_jd79665_750_bwry, &epd_jd79665_583_bwry,
-    &epd_ssd16xx_hs_266_bwr, &epd_ssd16xx_hs_200_bwy,
+    &epd_ssd16xx_hs_266_bwr, &epd_ssd16xx_hs_200_bwy, &epd_uc8151_hs_350_bwy,
 };
 
 epd_model_t* epd_init(epd_model_id_t id) {

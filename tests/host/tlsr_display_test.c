@@ -368,6 +368,33 @@ static void test_hanshow_200_bwy_window(void)
     CHECK(!begin());
 }
 
+/* Hanshow Nebular 350Y-N (ATC type 1): UC8151-class, 184 x 384, yellow in the second plane. */
+static void test_hanshow_350_bwy(void)
+{
+    bool completed = false;
+    long tres, dtm1, dtm2;
+    uint32_t plane = (184u / 8u) * 384u;
+
+    CASE("Hanshow 350 BWY: UC8151 resolution 184 x 384, both planes");
+    set_panel(1033u, 184u, 384u, OD_COLOR_SCHEME_BWY);
+    s_busy_idle_level = true;
+    fill(2u * plane, 11u);
+    CHECK(begin());
+    CHECK(stream(2u * plane, 244u));
+    CHECK(od_xfer_app_refresh(0u, &completed));
+    CHECK(completed);
+    tres = find_cmd(UC81xx_TRES, 0u);
+    CHECK(tres >= 0 && s_log[tres + 1].b == 184u && s_log[tres + 2].b == 0x01u && s_log[tres + 3].b == 0x80u);
+    dtm1 = find_cmd(UC81xx_DTM1, 0u);
+    dtm2 = find_cmd(UC81xx_DTM2, 0u);
+    CHECK(dtm1 >= 0 && dtm2 > dtm1);
+    CHECK(data_after(dtm1, NULL, s_got, sizeof(s_got)) == plane);
+    CHECK(memcmp(s_got, s_img, plane) == 0);
+    CHECK(data_after(dtm2, NULL, s_got, sizeof(s_got)) == plane);
+    CHECK(memcmp(s_got, s_img + plane, plane) == 0);
+    CHECK(cmd_after(UC81xx_DRF, dtm2));
+}
+
 /* The boot screen through the real hooks, drivers and SPI, on the Hanshow 2.66" config. */
 static void test_boot_screen(void)
 {
@@ -404,7 +431,7 @@ static void test_refusals(void)
     bool completed = true;
 
     CASE("unknown panel type refused before any pin moves");
-    set_panel(1033u, 400u, 300u, OD_COLOR_SCHEME_BWR);
+    set_panel(1034u, 400u, 300u, OD_COLOR_SCHEME_BWR);
     CHECK(!od_xfer_app_panel_info(&info));
     CHECK(s_log_n == 0u);
 
@@ -449,6 +476,7 @@ int main(void)
     test_active_low_panel_power();
     test_hanshow_266_window();
     test_hanshow_200_bwy_window();
+    test_hanshow_350_bwy();
     test_boot_screen();
     test_refusals();
     return OD_CHECK_REPORT_NONEMPTY("tlsr_display", 40u);

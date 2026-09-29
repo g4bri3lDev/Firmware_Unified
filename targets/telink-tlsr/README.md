@@ -74,22 +74,24 @@ layout across the boundary without a diagnostic.
 ## Panels
 
 The display config's `panel_ic_type` must be in canonical PanelIC 1000-1030, the Firmware_NRF52
-model line (e.g. 1022 = `SSD1619_026_BWR`), or one of this target's two Hanshow additions below.
+model line (e.g. 1022 = `SSD1619_026_BWR`), or one of this target's Hanshow additions below.
 Raw 1-31, which that firmware also accepted, is refused: canonically 1-51 are bb_epaper panels.
 The config's `pixel_width`/`pixel_height` and `color_scheme` must match that model:
 the table fixes the controller's RAM layout, so a mismatch is refused at transfer start rather
 than streamed into the wrong layout. Schemes: MONO for BW models, BWR or BWY for the two-plane
 models, BWRY for the JD796xx ones.
 
-Hanshow glass found on ATC tags, both provisional numbers until opendisplay-protocol assigns them:
+Hanshow glass found on ATC tags, all provisional numbers until opendisplay-protocol assigns them:
 
 | PanelIC | Model | Native size | ATC type | Held | `rotation` |
 |---|---|---|---|---|---|
 | 1031 | `SSD16XX_HS_266_BWR` | 152 x 296, 8-pixel source offset | 9, "266 HS BWR SSD" | landscape | 1 (90) |
 | 1032 | `SSD16XX_HS_200_BWY` | 200 x 152 | 5, "200 HS BWY SSD" | portrait | 3 (270) |
+| 1033 | `UC8151_HS_350_BWY` | 184 x 384 | 1, "350 HS BWY UC" (Nebular 350Y-N) | landscape | 1 (90) |
 
-Native size is sources x gates. ATC reports the BWY glass as 152x200; driven that way only the
-152x152 overlap reached the glass. Both scan gates upward and write the B/W RAM uninverted.
+Native size is sources x gates. ATC reports the 2.0" BWY glass as 152x200; driven that way only the
+152x152 overlap reached the glass. The two SSD glasses scan gates upward and write the B/W RAM
+uninverted; the UC glass runs on the imported UC8151 settings unchanged.
 `rotation` makes the tag's natural face upright: hosts add it to the requested rotation and the
 boot screen is drawn with it, so images need no `--rotate`.
 
