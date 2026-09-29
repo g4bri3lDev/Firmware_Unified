@@ -15,6 +15,12 @@ _attribute_ram_code_ int main(void)
 {
     int deep_ret_wakeup;
 
+    /* OTA banks of 192 KB, new image at 0x40000: bank B ends at 0x6FFFF, clear of the SDK's
+     * pairing/MAC/calibration sectors (0x74000-0x77FFF), ATC's tag type (0x79000) and the OD config
+     * (0x7A000). The default (124 KB at 0x20000) is too small for this image to grow. Must precede
+     * cpu_wakeup_init(). */
+    blc_ota_setFirmwareSizeAndBootAddress(192, MULTI_BOOT_ADDR_0x40000);
+
     blc_pm_select_internal_32k_crystal();
     cpu_wakeup_init();
     deep_ret_wakeup = pm_is_MCU_deepRetentionWakeup();

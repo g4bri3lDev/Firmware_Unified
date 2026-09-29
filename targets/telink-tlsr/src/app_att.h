@@ -23,6 +23,12 @@ typedef enum {
     OD_DP_H,          /* 0x2446  the OpenDisplay pipe */
     OD_CCB_H,         /* 0x2902  notify subscription */
 
+    OTA_PS_H,         /* 0x2800  Telink OTA service */
+    OTA_CMD_OUT_CD_H, /* 0x2803  read | write | write-without-response | notify */
+    OTA_CMD_OUT_DP_H, /* Telink OTA data -- ignored unless armed by OD command 0x0051 */
+    OTA_CMD_INPUT_CCB_H,
+    OTA_CMD_OUT_DESC_H,
+
     ATT_END_H,
 } ATT_HANDLE;
 

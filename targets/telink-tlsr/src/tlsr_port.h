@@ -69,6 +69,10 @@ void tlsr_port_crumb(uint8_t step);
  * persistent reset counter when it did. *resets receives that counter. */
 uint8_t tlsr_port_crumb_boot(uint8_t *resets);
 
+/* Allow the Telink OTA service to accept an image on the current connection (ENTER_DFU); the
+ * link going down disarms it. */
+void tlsr_port_ota_arm(bool on);
+
 void tlsr_port_mac(uint8_t out[6]);
 void tlsr_port_set_adv_msd(const uint8_t msd[16]);
 void tlsr_port_reboot(void);

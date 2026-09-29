@@ -9,7 +9,7 @@
 
 /* OpenDisplay authenticates at the application layer (od_session); no BLE pairing. */
 #define BLE_APP_SECURITY_ENABLE          0
-#define BLE_OTA_SERVER_ENABLE            0
+#define BLE_OTA_SERVER_ENABLE            1   /* gated: see app_att.c */
 #define APP_FLASH_PROTECTION_ENABLE      0
 #define APP_BATT_CHECK_ENABLE            0
 

@@ -54,7 +54,7 @@ static bool              s_reboot_flag = true;
  * marker, the frame-path step the previous run died in (tlsr_port.h), the persistent
  * watchdog-reset count, and a build tag. Read it with any BLE scanner. */
 #define DIAG_MARKER     0xD1u
-#define DIAG_BUILD_TAG  0x02u
+#define DIAG_BUILD_TAG  0x06u
 static uint8_t           s_dynamic[OD_ADVERT_DYNAMIC_LEN];
 
 /* Boot screen: drawn once per boot from the main loop (never during BLE init, and never while a

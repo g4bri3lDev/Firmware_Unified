@@ -1156,7 +1156,16 @@ watchdog, breadcrumbs in MSD bytes 0..3). Evidence: the session transcript of 20
       driven: with suspend allowed, every stack-servicing call during render/refresh napped until the
       next advertising event (500 ms), and the boot render never finished.
 - [x] **No boot screen after a watchdog reset** (policy; the reset path is unit-level, not provoked on silicon).
-- [ ] Encrypted session (auth + CCM) — the AES engine known-answer test has not run on silicon.
+- [x] **Wireless update** (`tools/ble_ota.py`: OD ENTER_DFU `0x0051` arms the Telink OTA service, then
+      Telink's legacy OTA): seven updates, both banks (new image at `0x40000`, 192 KB banks), ~40 s for
+      100 KB; the tag reports the new build tag afterwards and draws the boot screen.
+- [x] **Failed updates are harmless**: six aborted attempts, the running firmware kept every time.
+- [x] **Unarmed OTA is ignored**: a full upload without `0x0051` left the build unchanged.
+- [x] Found: the OTA server aborts on the first packet when the image length is a multiple of 16; Telink
+      images are body-padded to 16 bytes, so the length is 4 mod 16. `finish_image.py` pads accordingly
+      and both it and `ble_ota.py` refuse any other length.
+- [ ] Encrypted session (auth + CCM) — the AES engine known-answer test has not run on silicon; `ble_ota.py`
+      sends ENTER_DFU in plaintext, so updating a keyed tag is not supported yet.
 - [ ] **One unexplained loss of the tag** (2026-09-29): after a boot screen, a failed connect, then no
       advertising and no reaction to SWS resets until the USB adapter was replugged. Not reproduced;
       a brown-out on the adapter's 3.3 V is suspected. Note for this wiring: replugging only the 3.3 V

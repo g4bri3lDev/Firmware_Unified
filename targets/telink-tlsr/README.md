@@ -6,8 +6,8 @@ ESLs, TLSR8258/8359). Bare metal on Telink's `tc_ble_single_sdk`: no RTOS, no Kc
 superloop, like `efr32bg22-slc`.
 
 > **Status: runs on one tag.** A Hanshow 2.66" BWR ESL (ATC type 9) installs it over ATC's OTA,
-> takes a config, draws the boot screen and shows an uploaded image correctly. Open: encrypted
-> sessions untested on silicon, no other panel verified.
+> takes a config, draws the boot screen, shows an uploaded image correctly and updates itself over
+> BLE. Open: encrypted sessions untested on silicon, no other panel verified.
 > `docs/HARDWARE_VERIFICATION_CHECKLIST.md` § `telink-tlsr` has the rows.
 
 ## Build
@@ -40,7 +40,8 @@ offset 24, which is what both Telink OTA and ATC's `sendFw()` check before accep
 | Display transfer (full image, direct and compressed) | Firmware_NRF52's UC81xx / SSD16xx / JD796xx drivers over bit-banged SPI; see "Panels" below |
 | Partial refresh | not offered (`partial_enabled = false`) |
 | Boot screen | shared `od_boot_screen`, drawn once per boot from the main loop; skipped when the config sets `CLEAR_ON_BOOT` or the previous run ended in a watchdog reset. Outcome in MSD byte 4 (`0xb2` drawn, `0xe1..0xe5` failing hook, `0xef` refused before any hook) |
-| LED, buzzer, DFU, power-off, deep sleep | NACKed |
+| DFU (`0x0051`) | arms the Telink OTA service for the current connection; see "Flashing" |
+| LED, buzzer, power-off, deep sleep | NACKed |
 | Watchdog, logging, battery ADC, die temperature | not wired |
 | Power | suspend between radio events; no deep-retention sleep (shared/ state is not in retention RAM) |
 
@@ -98,8 +99,17 @@ image byte lands after the right RAM command, once, followed by refresh and slee
 
 ## Flashing
 
+- **Update a tag already running this firmware, wireless:**
+  `tools/ble_ota.py --device ODxxxxxx build/telink-tlsr/opendisplay_tlsr.bin`. It sends OpenDisplay's
+  ENTER_DFU (`0x0051`), which arms the Telink OTA service for that connection only -- without it the
+  service ignores every write, so nobody in range can reflash the tag -- then streams the image with
+  Telink's legacy OTA protocol. The new image goes to the other 192 KB bank (`0x0` / `0x40000`); the
+  tag checks its CRC32 and reboots into it only if it passes, so a failed or interrupted update leaves
+  the old firmware running. Images must be 4 mod 16 bytes long (body padded to 16, plus the CRC):
+  the OTA server aborts on any other length, and `finish_image.py` guarantees it. Keyed (encrypted)
+  tags are not supported by the tool yet.
 - **From ATC_BLE_OEPL, wireless:** ATC's web uploader → "Select Firmware" → `opendisplay_tlsr.bin`.
-  One way: ATC copies the image over itself, and this firmware has no OTA of its own yet.
+  One way: ATC copies the image over itself.
 - **Over SWS, wired:** `tools/sws_flash.py --port /dev/cu.usbserial-XXXX build/telink-tlsr/opendisplay_tlsr.bin`.
   USB-serial TX -> 1..1.8 kOhm -> SWS (PA7, also the blue LED line), GND, 3.3 V logic. Write-only:
   no RX needed, nothing is verified over the wire. Works on any firmware state.

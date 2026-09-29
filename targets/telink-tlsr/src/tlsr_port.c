@@ -44,6 +44,7 @@ uint32_t tlsr_port_noise32(void)
 
 void tlsr_port_reboot(void)
 {
+    analog_write(0x3b, 0u);            /* a requested reboot is not a hang: clear the breadcrumb */
     start_reboot();
 }
 

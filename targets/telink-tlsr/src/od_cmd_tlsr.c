@@ -100,11 +100,17 @@ od_cmd_result_t od_cmd_app_reboot(const od_cmd_ctx_t *ctx, od_span_t body)
     return OD_CMD_OK;
 }
 
-/* No OD bootloader on this target: firmware is replaced over ATC's or Telink's own OTA path. */
+/* No separate bootloader: ENTER_DFU arms the Telink OTA service for this connection, and the
+ * image is then streamed there (tools/ble_ota.py). Reaching this handler already passed the
+ * command gate, so with a key configured only an authenticated central can arm it. */
 od_cmd_result_t od_cmd_app_enter_dfu(const od_cmd_ctx_t *ctx, od_span_t body)
 {
+    uint8_t ok[] = { RESP_ACK, RESP_ENTER_DFU };
+
     (void)body;
-    return nack(ctx, RESP_ENTER_DFU, 0u);
+    tlsr_port_ota_arm(true);
+    (void)reply(ctx, ok, sizeof(ok));
+    return OD_CMD_OK;
 }
 
 od_cmd_result_t od_cmd_app_power_off(const od_cmd_ctx_t *ctx, od_span_t body)

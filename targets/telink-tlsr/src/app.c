@@ -65,6 +65,15 @@ static void build_identity(void)
     s_scan_rsp_len = 14;
 }
 
+/* The stack reboots into the new image right after a successful OTA. That reboot is deliberate:
+ * clear the breadcrumb first, or the next boot reports it as a hang (and skips the boot screen). */
+static void ota_result(int result)
+{
+    if (result == OTA_SUCCESS) {
+        tlsr_port_crumb(0);
+    }
+}
+
 static void task_connect(u8 e, u8 *p, int n)
 {
     (void)e; (void)p; (void)n;
@@ -82,6 +91,7 @@ static void task_terminate(u8 e, u8 *p, int n)
 {
     (void)e; (void)p; (void)n;
     tlsr_port_crumb(0x21);
+    tlsr_port_ota_arm(false);
     s_connected = 0;
     s_connect_tick = 0;
     app_att_reset_subscriptions();
@@ -152,6 +162,10 @@ _attribute_no_inline_ void user_init_normal(void)
     blc_l2cap_initMtuBuffer(app_l2cap_rx_fifo, ACL_L2CAP_BUFF_SIZE, app_l2cap_tx_fifo, ACL_L2CAP_BUFF_SIZE);
 #endif
     blc_smp_setSecurityLevel(No_Security);
+
+    blc_ota_initOtaServer_module();
+    blc_ota_setOtaProcessTimeout(300);
+    blc_ota_registerOtaResultIndicationCb(ota_result);
 
     build_identity();
     od_tlsr_init();                     /* loads config and publishes the first MSD via the port */
