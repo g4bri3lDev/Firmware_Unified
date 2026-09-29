@@ -1151,7 +1151,16 @@ watchdog, breadcrumbs in MSD bytes 0..3). Evidence: the session transcript of 20
       counter unchanged). The earlier "watchdog after every upload" was a false positive: an SWS
       flash halts and resets the MCU mid-loop, leaving breadcrumb `0x10`, which the next boot counted
       as a hang. `sws_flash.py` now clears the breadcrumb (analog `0x3b`) before its reset; verified.
+- [x] **Boot screen** drawn on power-up (MSD byte 4 = `0xb2`), then replaced by an upload; the uploaded
+      image persists until the next power cycle. Needed the MCU held out of suspend while the panel is
+      driven: with suspend allowed, every stack-servicing call during render/refresh napped until the
+      next advertising event (500 ms), and the boot render never finished.
+- [x] **No boot screen after a watchdog reset** (policy; the reset path is unit-level, not provoked on silicon).
 - [ ] Encrypted session (auth + CCM) — the AES engine known-answer test has not run on silicon.
+- [ ] **One unexplained loss of the tag** (2026-09-29): after a boot screen, a failed connect, then no
+      advertising and no reaction to SWS resets until the USB adapter was replugged. Not reproduced;
+      a brown-out on the adapter's 3.3 V is suspected. Note for this wiring: replugging only the 3.3 V
+      wire does not power-cycle the chip — the idle-high TX line feeds it through the SWS resistor.
 - [ ] Any other ATC panel type; any other tag.
 
 Found on the way, fixed, and guarded: tc32 at `-Os` emits broken switch jump tables (the first

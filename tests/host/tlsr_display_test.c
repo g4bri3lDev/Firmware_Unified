@@ -13,6 +13,7 @@
 
 #include "EPD_driver.h"
 #include "od_check.h"
+#include "od_boot_screen.h"
 #include "od_config.h"
 #include "od_tlsr.h"
 #include "od_txq.h"
@@ -74,7 +75,10 @@ bool tlsr_port_gpio_read(uint8_t pin)
 }
 
 void tlsr_port_delay_us(uint32_t us) { (void)us; }
+void tlsr_port_mac(uint8_t out[6]) { static const uint8_t m[6] = {0x92, 0xa9, 0x80, 1, 2, 3}; memcpy(out, m, 6); }
 void tlsr_port_service_stack(void) { }
+static int s_awake_depth;              /* stay_awake(true) must always be paired with false */
+void tlsr_port_stay_awake(bool on) { s_awake_depth += on ? 1 : -1; }
 
 /* ------------------------------------------------------------------ other link stubs --- */
 
@@ -297,6 +301,36 @@ static void test_hanshow_266_window(void)
     CHECK(!begin());
 }
 
+/* The boot screen through the real hooks, drivers and SPI, on the Hanshow 2.66" config. */
+static void test_boot_screen(void)
+{
+    static uint8_t row[256], qr[256];
+    struct od_boot_bufs bufs = { row, sizeof(row), qr, sizeof(qr) };
+    uint32_t plane = (152u / 8u) * 296u, i, black = 0u;
+    long ram1, ram2;
+
+    CASE("boot screen renders both planes and refreshes");
+    set_panel(1031u, 152u, 296u, OD_COLOR_SCHEME_BWR);
+    s_busy_idle_level = false;
+    CHECK(od_boot_screen_render(&s_cfg, NULL, &bufs));
+    ram1 = find_cmd(SSD16xx_WRITE_RAM1, 0u);
+    ram2 = find_cmd(SSD16xx_WRITE_RAM2, 0u);
+    CHECK(ram1 >= 0 && ram2 > ram1);
+    CHECK(data_after(ram1, NULL, s_got, sizeof(s_got)) == plane);
+    for (i = 0; i < plane; i++) black += (uint32_t)(s_got[i] != 0xFFu);
+    CHECK(black > plane / 20u);                     /* text and a QR code, not a blank frame */
+    CHECK(black < plane);                           /* and not an all-black one */
+    CHECK(data_after(ram2, NULL, s_got, sizeof(s_got)) == plane);
+    CHECK(find_cmd(SSD16xx_MASTER_ACTIVATE, 0u) > ram2);
+    CHECK(find_cmd(SSD16xx_SLEEP_MODE, 0u) > ram2);  /* powered down afterwards */
+    CHECK(s_awake_depth == 0);                       /* and suspend allowed again */
+
+    CASE("a model mismatch refuses before drawing anything");
+    set_panel(1031u, 296u, 152u, OD_COLOR_SCHEME_BWR);
+    CHECK(!od_boot_screen_render(&s_cfg, NULL, &bufs));
+    CHECK(find_cmd(SSD16xx_WRITE_RAM1, 0u) < 0);
+}
+
 static void test_refusals(void)
 {
     od_xfer_panel_info_t info;
@@ -347,6 +381,7 @@ int main(void)
     test_plane_boundary_in_one_write();
     test_active_low_panel_power();
     test_hanshow_266_window();
+    test_boot_screen();
     test_refusals();
     return OD_CHECK_REPORT_NONEMPTY("tlsr_display", 40u);
 }

@@ -6,8 +6,8 @@ ESLs, TLSR8258/8359). Bare metal on Telink's `tc_ble_single_sdk`: no RTOS, no Kc
 superloop, like `efr32bg22-slc`.
 
 > **Status: runs on one tag.** A Hanshow 2.66" BWR ESL (ATC type 9) installs it over ATC's OTA,
-> takes a config and shows an uploaded image correctly. Open: encrypted sessions untested on
-> silicon, no other panel verified, no boot screen.
+> takes a config, draws the boot screen and shows an uploaded image correctly. Open: encrypted
+> sessions untested on silicon, no other panel verified.
 > `docs/HARDWARE_VERIFICATION_CHECKLIST.md` § `telink-tlsr` has the rows.
 
 ## Build
@@ -39,6 +39,7 @@ offset 24, which is what both Telink OTA and ATC's `sendFw()` check before accep
 | Randomness | AES-CTR generator seeded from the SDK's analog-noise `rand()`; the noise source is unmeasured |
 | Display transfer (full image, direct and compressed) | Firmware_NRF52's UC81xx / SSD16xx / JD796xx drivers over bit-banged SPI; see "Panels" below |
 | Partial refresh | not offered (`partial_enabled = false`) |
+| Boot screen | shared `od_boot_screen`, drawn once per boot from the main loop; skipped when the config sets `CLEAR_ON_BOOT` or the previous run ended in a watchdog reset. Outcome in MSD byte 4 (`0xb2` drawn, `0xe1..0xe5` failing hook, `0xef` refused before any hook) |
 | LED, buzzer, DFU, power-off, deep sleep | NACKed |
 | Watchdog, logging, battery ADC, die temperature | not wired |
 | Power | suspend between radio events; no deep-retention sleep (shared/ state is not in retention RAM) |
@@ -63,7 +64,7 @@ layout across the boundary without a diagnostic.
 | `epd/UC81xx.c`, `epd/SSD16xx.c`, `epd/epd_models.c` | OD | panel drivers and model table, imported unchanged from Firmware_NRF52 `EPD/` at `71b870c1` |
 | `epd/EPD_driver.h` | OD | same import; only the nRF include block, `EPD_DEBUG` and the Arduino wrappers changed |
 | `epd/epd_io.c`, `epd/epd_port.h` | OD | the `EPD_*` primitives: bit-banged mode-0 SPI (3-wire read), reset, busy wait |
-| `od_tlsr_rt.c`, `tc32_compat.h` | OD | toolchain gaps, below |
+| `od_tlsr_rt.c`, `od_tlsr_fmt.c`, `tc32_compat.h` | OD | toolchain gaps, below (`od_tlsr_fmt.c`: snprintf without FP helpers, host-tested against libc) |
 
 ## Panels
 
@@ -102,6 +103,8 @@ image byte lands after the right RAM command, once, followed by refresh and slee
 - **Over SWS, wired:** `tools/sws_flash.py --port /dev/cu.usbserial-XXXX build/telink-tlsr/opendisplay_tlsr.bin`.
   USB-serial TX -> 1..1.8 kOhm -> SWS (PA7, also the blue LED line), GND, 3.3 V logic. Write-only:
   no RX needed, nothing is verified over the wire. Works on any firmware state.
+  To power-cycle a tag powered from the adapter, unplug the adapter: removing only its 3.3 V wire
+  leaves the chip half-powered through the idle-high TX line and the SWS pin.
 
 Then give the tag its config (`atc-ble od-config` in py-atc-ble-oepl, read *before* flashing) with
 py-opendisplay's `write_config`, connecting with `config=` so it does not try to read the absent one.

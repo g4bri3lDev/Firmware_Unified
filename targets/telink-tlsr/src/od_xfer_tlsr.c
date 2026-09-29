@@ -10,6 +10,7 @@
  * barrier, power down after refresh). One deliberate difference: a flush TIMEOUT before refresh
  * proceeds, as od_txq.h specifies, where BG22 aborts. */
 
+#include "od_boot_app.h"
 #include "od_inflate_app.h"
 #include "od_nfc_app.h"
 #include "od_xfer_app.h"
@@ -78,6 +79,7 @@ static void panel_down(void)
     EPD_GPIO_Uninit();
     memset(&s_xfer, 0, sizeof(s_xfer));
     s_xfer.plane = -1;
+    tlsr_port_stay_awake(false);
 }
 
 void od_xfer_app_prepare_start(void)
@@ -105,7 +107,9 @@ bool od_xfer_app_panel_info(od_xfer_panel_info_t *out)
     return true;
 }
 
-bool od_xfer_app_begin_full(const od_color_geometry_t *geometry)
+/* Power the panel up and initialise it for the configured model. Shared by od_xfer's full-image
+ * start and the boot screen, so both go through the same model check. */
+static bool panel_start(const od_color_geometry_t *geometry)
 {
     const struct DisplayConfig *d = display_cfg();
     const struct od_config *cfg = od_tlsr_config();
@@ -123,6 +127,7 @@ bool od_xfer_app_begin_full(const od_color_geometry_t *geometry)
     pins.rst  = d->reset_pin;
     pins.busy = d->busy_pin;
     pins.pwr  = cfg->system_config.pwr_pin;
+    tlsr_port_stay_awake(true);        /* released by panel_down() */
     epd_io_configure(&pins);
     EPD_GPIO_Init();
 
@@ -144,6 +149,11 @@ bool od_xfer_app_begin_full(const od_color_geometry_t *geometry)
                         ? geometry->part_bytes[0] : geometry->total_bytes;
     s_xfer.plane = -1;
     return true;
+}
+
+bool od_xfer_app_begin_full(const od_color_geometry_t *geometry)
+{
+    return panel_start(geometry);
 }
 
 /* cfg byte as Firmware_NRF52's write_ram() reads it: high nibble 0 opens the plane (sends the
@@ -246,6 +256,117 @@ void od_xfer_app_set_displayed_etag(uint32_t etag)
 uint32_t od_xfer_app_now_ms(void)
 {
     return od_hal_uptime_ms();
+}
+
+/* ------------------------------------------------------------------------ boot screen --- */
+
+/* shared/core/od_boot_screen.c renders native-orientation rows, top to bottom, plane 0 (1 = white)
+ * then plane 1 (1 = colour) -- the same bytes a direct upload carries -- so the hooks are the
+ * upload path fed one row at a time. Every row also services the BLE stack and the watchdog:
+ * rendering a full screen in software takes long enough to matter on a 16 MHz core. */
+
+static int s_boot_plane = -1;
+
+/* First hook that refused, for the diagnostic byte od_tlsr_app.c advertises (0 = none). */
+uint8_t od_tlsr_boot_fail;
+
+static int boot_fail(uint8_t code)
+{
+    if (od_tlsr_boot_fail == 0u) {
+        od_tlsr_boot_fail = code;
+    }
+    return -1;
+}
+
+int od_boot_app_begin_frame(uint16_t width, uint16_t height, uint8_t segments)
+{
+    const struct DisplayConfig *d = display_cfg();
+    od_color_geometry_t geometry;
+
+    if (d == NULL || segments != 1u || width != d->pixel_width || height != d->pixel_height ||
+        od_color_direct_geometry(d->color_scheme, width, height, &geometry) != OD_COLOR_OK) {
+        return boot_fail(0xE1);
+    }
+    s_boot_plane = -1;
+    return panel_start(&geometry) ? 0 : boot_fail(0xE1);
+}
+
+int od_boot_app_begin_plane(int plane)
+{
+    if (!s_xfer.active || (plane != OD_BOOT_PLANE_PRIMARY && plane != OD_BOOT_PLANE_SECOND)) {
+        return boot_fail(0xE2);
+    }
+    s_boot_plane = plane;
+    return 0;
+}
+
+int od_boot_app_write_row(uint16_t y, uint8_t segment, const uint8_t *row, uint16_t len)
+{
+    (void)y;
+    if (!s_xfer.active || s_boot_plane < 0 || segment != 0u || row == NULL || len == 0u) {
+        return boot_fail(0xE3);
+    }
+    write_plane((uint8_t)s_boot_plane, row, len);
+    tlsr_port_service_stack();
+    return 0;
+}
+
+int od_boot_app_end_plane(int plane)
+{
+    (void)plane;
+    s_boot_plane = -1;
+    return s_xfer.active ? 0 : boot_fail(0xE4);
+}
+
+int od_boot_app_end_frame(void)
+{
+    bool completed = false;
+    return od_xfer_app_refresh(0u, &completed) && completed ? 0 : boot_fail(0xE5);
+}
+
+int od_boot_app_bits_per_pixel(uint8_t color_scheme)
+{
+    return color_scheme == OD_COLOR_SCHEME_BWRY ? 2 : 1;
+}
+
+int od_boot_app_default_plane(uint8_t color_scheme)
+{
+    (void)color_scheme;
+    return OD_BOOT_PLANE_PRIMARY;
+}
+
+bool od_boot_app_direct_2bpp(void)
+{
+    return true;   /* BWRY goes to the JD796xx as packed 2bpp, as a direct upload does */
+}
+
+uint8_t od_boot_app_segments(void)
+{
+    return 1u;
+}
+
+uint32_t od_boot_app_device_id24(void)
+{
+    uint8_t mac[6];
+    tlsr_port_mac(mac);                      /* the same three bytes the ODxxxxxx name shows */
+    return ((uint32_t)mac[2] << 16) | ((uint32_t)mac[1] << 8) | mac[0];
+}
+
+void od_boot_app_firmware_version(uint8_t *major, uint8_t *minor, uint8_t *patch)
+{
+    *major = (uint8_t)OD_TLSR_VERSION_MAJOR;
+    *minor = (uint8_t)OD_TLSR_VERSION_MINOR;
+    *patch = (uint8_t)OD_TLSR_VERSION_PATCH;
+}
+
+float od_boot_app_battery_volts(void)
+{
+    return -1.0f;                            /* not measured on this target yet: prints "--V" */
+}
+
+float od_boot_app_chip_temp_c(void)
+{
+    return -1000.0f;                         /* not measured yet: prints "--C" */
 }
 
 /* ------------------------------------------------------------------------------- nfc --- */

@@ -88,6 +88,11 @@ static void task_terminate(u8 e, u8 *p, int n)
     od_tlsr_on_disconnect();
 }
 
+void tlsr_port_stay_awake(bool on)
+{
+    bls_pm_setSuspendMask(on ? SUSPEND_DISABLE : (SUSPEND_ADV | SUSPEND_CONN));
+}
+
 bool tlsr_port_connected(void)
 {
     return s_connected != 0;

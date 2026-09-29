@@ -55,6 +55,12 @@ void tlsr_port_gpio_release(uint8_t pin);   /* input, floating: the lowest-leaka
  * (which only queues into od_rxq) and link up/down (which only set flags). */
 void tlsr_port_service_stack(void);
 
+/* Keep the MCU out of suspend while the panel is driven. tlsr_port_service_stack() runs the
+ * stack's main loop, which otherwise sleeps until the next radio event -- up to an advertising
+ * interval (500 ms) per call, turning a 1 ms busy-wait step or one rendered row into half a
+ * second. Released when the panel powers down. */
+void tlsr_port_stay_awake(bool on);
+
 /* Breadcrumbs for field debugging without a log: the current step of the frame path lives in an
  * analog register that a watchdog reset does not clear (only a power cycle does), so after a hang
  * the rebooted firmware can advertise where the previous run died. 0 = idle. */

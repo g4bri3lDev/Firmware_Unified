@@ -53,7 +53,9 @@ set(OD_TELINK_SHARED_SOURCES
     ${OD_SHARED_SOURCES_APP_RXQ}
     ${OD_SHARED_SOURCES_APP_INFLATE}
     ${OD_SHARED_SOURCES_APP_XFER}
-    ${OD_SHARED_SOURCES_APP_NFC})
+    ${OD_SHARED_SOURCES_APP_NFC}
+    ${OD_SHARED_SOURCES_APP_BOOT}
+    ${OD_REPO_ROOT}/third_party/qrcode/qrcode.c)
 
 add_library(od_side OBJECT
     ${OD_TELINK_SHARED_SOURCES}
@@ -63,6 +65,7 @@ add_library(od_side OBJECT
     ${SRC}/od_hal_tlsr.c
     ${SRC}/od_tlsr_app.c
     ${SRC}/od_tlsr_rt.c
+    ${SRC}/od_tlsr_fmt.c
     ${SRC}/od_xfer_tlsr.c
     # Panel drivers imported from Firmware_NRF52 (EPD/, 71b870c1); epd_io.c is their I/O here.
     ${SRC}/epd/UC81xx.c
@@ -70,7 +73,8 @@ add_library(od_side OBJECT
     ${SRC}/epd/epd_models.c
     ${SRC}/epd/epd_io.c)
 target_include_directories(od_side PRIVATE ${OD_SHARED_INCLUDE_DIRS} ${SRC} ${SRC}/epd)
-target_compile_definitions(od_side PRIVATE ${OD_TELINK_DEFS})
+# The boot logo is only drawn on 400x300 and larger; one size keeps ~70 KB of bitmap out of flash.
+target_compile_definitions(od_side PRIVATE ${OD_TELINK_DEFS} OD_BOOT_LOGO_SIZES=1)
 # -O2, never -Os: tc32 at -Os lays switch tables out as byte offsets but dispatches them as 32-bit
 # addresses, so the first switch taken jumps into garbage (od_frame_policy did, on hardware).
 # The SDK is built at -O2 for the same reason; tools/check_jump_tables.py guards it.

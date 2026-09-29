@@ -5,6 +5,7 @@
 
 #include "epd_port.h"
 #include "od_advert.h"
+#include "od_boot_screen.h"
 #include "od_config.h"
 #include "od_config_read.h"
 #include "od_config_store.h"
@@ -55,6 +56,14 @@ static bool              s_reboot_flag = true;
 #define DIAG_MARKER     0xD1u
 #define DIAG_BUILD_TAG  0x02u
 static uint8_t           s_dynamic[OD_ADVERT_DYNAMIC_LEN];
+
+/* Boot screen: drawn once per boot from the main loop (never during BLE init, and never while a
+ * central is connected), unless the config sets CLEAR_ON_BOOT or the previous run ended in a
+ * watchdog reset -- a crash must not replace the image a user put there. Buffers are sized for a
+ * row of the widest supported panel and a version-6 QR code (211 bytes). */
+static bool              s_boot_pending;
+static uint8_t           s_boot_row[256];
+static uint8_t           s_boot_qr[256];
 static uint8_t           s_msd[OD_ADVERT_MSD_LEN];
 
 /* --------------------------------------------------------------------------- config --- */
@@ -159,10 +168,37 @@ void od_tlsr_init(void)
     s_dynamic[1] = died_in;
     s_dynamic[2] = resets;
     s_dynamic[3] = DIAG_BUILD_TAG;
+    s_boot_pending = (died_in == 0u);
     od_session_init(&s_session, 0u);
     od_config_asm_reset(&s_work.assembler);
     od_tlsr_config_reload();
     od_core_reset();
+    od_tlsr_publish_msd();
+    if (s_cfg.display_count == 0u ||
+        (s_cfg.displays[0].transmission_modes & OD_TRANSMISSION_MODE_CLEAR_ON_BOOT) != 0u) {
+        s_boot_pending = false;
+    }
+    s_dynamic[4] = s_boot_pending ? 0xB0u : 0x00u;
+    od_tlsr_publish_msd();
+}
+
+/* MSD byte 4: boot-screen outcome (0xB0 pending, 0xB1 started, 0xB2 drawn, 0xE1..0xE5 the first
+ * od_boot_app hook that refused, 0xEF refused before any hook ran, 0x00 not attempted). */
+extern uint8_t od_tlsr_boot_fail;
+
+static void boot_screen(void)
+{
+    struct od_boot_bufs bufs;
+    bool ok;
+
+    bufs.row = s_boot_row;
+    bufs.row_len = sizeof(s_boot_row);
+    bufs.qr = s_boot_qr;
+    bufs.qr_len = sizeof(s_boot_qr);
+    s_dynamic[4] = 0xB1u;
+    od_tlsr_boot_fail = 0u;
+    ok = od_boot_screen_render(&s_cfg, od_session_app_security(), &bufs);
+    s_dynamic[4] = ok ? 0xB2u : (od_tlsr_boot_fail != 0u ? od_tlsr_boot_fail : 0xEFu);
     od_tlsr_publish_msd();
 }
 
@@ -220,6 +256,11 @@ void od_tlsr_poll(void)
     uint8_t drained;
 
     (void)od_hal_uptime_ms();          /* keep the tick extension ahead of its 268 s wrap */
+
+    if (s_boot_pending && !tlsr_port_connected()) {
+        s_boot_pending = false;
+        boot_screen();
+    }
 
     if (s_close_pending) {
         s_close_pending = false;
