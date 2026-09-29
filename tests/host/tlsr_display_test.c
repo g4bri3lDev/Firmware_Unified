@@ -68,9 +68,14 @@ void tlsr_port_gpio_write(uint8_t pin, bool level)
     s_level[pin] = level ? 1u : 0u;
 }
 
+/* The panel's temperature register, clocked out MSB first on MOSI when the driver reads. */
+static uint8_t s_temp_byte = 23u;
+static uint8_t s_read_bit;
+
 bool tlsr_port_gpio_read(uint8_t pin)
 {
     if (pin == P_BUSY) return s_busy_stuck ? !s_busy_idle_level : s_busy_idle_level;
+    if (pin == P_MOSI) return ((s_temp_byte >> (7u - (s_read_bit++ & 7u))) & 1u) != 0u;
     return false;
 }
 
@@ -83,6 +88,10 @@ void tlsr_port_stay_awake(bool on) { s_awake_depth += on ? 1 : -1; }
 /* ------------------------------------------------------------------ other link stubs --- */
 
 static struct od_config s_cfg;
+static int s_temp_reported = -128;
+void od_tlsr_set_temperature(int8_t c) { s_temp_reported = c; }
+float od_tlsr_battery_volts(void) { return -1.0f; }
+float od_tlsr_temperature_c(void) { return -1000.0f; }
 const struct od_config *od_tlsr_config(void) { return &s_cfg; }
 uint32_t od_hal_uptime_ms(void) { return 0u; }
 od_txq_status_t od_txq_flush(uint32_t now_ms, uint32_t deadline_ms)
@@ -132,6 +141,18 @@ static long find_cmd(uint8_t cmd, unsigned nth)
         if (s_log[i].dc == 0u && s_log[i].b == cmd && nth-- == 0u) return (long)i;
     }
     return -1;
+}
+
+/* True when command `cmd` occurs anywhere after log index `after` (the refresh after the image;
+ * SSD panels also issue an activation before it, to load the temperature). */
+static bool cmd_after(uint8_t cmd, long after)
+{
+    unsigned nth;
+    long at;
+    for (nth = 0; (at = find_cmd(cmd, nth)) >= 0; ++nth) {
+        if (at > after) return true;
+    }
+    return false;
 }
 
 /* The data bytes following the command at `at`, up to the next command. */
@@ -224,7 +245,7 @@ static void test_ssd1619_bw_odd_chunks(void)
     CHECK(memcmp(s_got, s_img, 15000u) == 0);
     CHECK(find_cmd(SSD16xx_WRITE_RAM1, 1u) < 0);
     CHECK(find_cmd(SSD16xx_WRITE_RAM2, 0u) < 0);
-    CHECK(find_cmd(SSD16xx_MASTER_ACTIVATE, 0u) > ram);
+    CHECK(cmd_after(SSD16xx_MASTER_ACTIVATE, ram));
 }
 
 static void test_plane_boundary_in_one_write(void)
@@ -275,12 +296,15 @@ static void test_hanshow_266_window(void)
 
     CASE("Hanshow 2.66 BWR: 19-byte source window at offset 1, both planes");
     set_panel(1031u, 152u, 296u, OD_COLOR_SCHEME_BWR);
+    s_temp_reported = -128;
+    s_read_bit = 0u;
     s_busy_idle_level = false;
     fill(2u * plane, 5u);
     CHECK(begin());
     CHECK(stream(2u * plane, 244u));
     CHECK(od_xfer_app_refresh(0u, &completed));
     CHECK(completed);
+    CHECK(s_temp_reported == 23);                   /* controller temperature read and reported */
 
     xpos = find_cmd(SSD16xx_RAM_XPOS, 0u);
     CHECK(xpos >= 0 && s_log[xpos + 1].b == 0x01u && s_log[xpos + 2].b == 0x13u);
@@ -321,7 +345,7 @@ static void test_boot_screen(void)
     CHECK(black > plane / 20u);                     /* text and a QR code, not a blank frame */
     CHECK(black < plane);                           /* and not an all-black one */
     CHECK(data_after(ram2, NULL, s_got, sizeof(s_got)) == plane);
-    CHECK(find_cmd(SSD16xx_MASTER_ACTIVATE, 0u) > ram2);
+    CHECK(cmd_after(SSD16xx_MASTER_ACTIVATE, ram2));
     CHECK(find_cmd(SSD16xx_SLEEP_MODE, 0u) > ram2);  /* powered down afterwards */
     CHECK(s_awake_depth == 0);                       /* and suspend allowed again */
 

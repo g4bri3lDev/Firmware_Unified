@@ -32,7 +32,7 @@ offset 24, which is what both Telink OTA and ATC's `sendFw()` check before accep
 |---|---|
 | BLE peripheral, GATT service/characteristic `0x2446` (write, write-no-rsp, notify) | implemented |
 | 247-byte ATT MTU, 251-octet DLE | configured; slave requests DLE if the central has not after 1 s |
-| Advertising: flags + 16-byte OD MSD, scan response `ODxxxxxx` + UUID `0x2446` | implemented; battery and temperature fields are sent as 0 V / -40 C (not measured yet) |
+| Advertising: flags + 16-byte OD MSD, scan response `ODxxxxxx` + UUID `0x2446` | implemented; battery and temperature filled as below, 0 V / -40 C until first measured |
 | Shared dispatch, RX ring, TX queue, config read/write/chunk/clear, session auth + CCM | implemented over shared/ |
 | Config storage | two 4 KB sectors at `0x7A000` (see `od_hal_tlsr.c` for the flash map) |
 | Crypto | TLSR825x AES engine + `od_aes_modes.c` (CMAC, CCM); engine byte order found by a FIPS-197 known-answer test at first use |
@@ -42,7 +42,10 @@ offset 24, which is what both Telink OTA and ATC's `sendFw()` check before accep
 | Boot screen | shared `od_boot_screen`, drawn once per boot from the main loop; skipped when the config sets `CLEAR_ON_BOOT` or the previous run ended in a watchdog reset. Outcome in MSD byte 4 (`0xb2` drawn, `0xe1..0xe5` failing hook, `0xef` refused before any hook) |
 | DFU (`0x0051`) | arms the Telink OTA service for the current connection; see "Flashing" |
 | LED, buzzer, power-off, deep sleep | NACKed |
-| Watchdog, logging, battery ADC, die temperature | not wired |
+| Battery voltage | SAR ADC on `power_option.battery_sense_pin` (PB0-7, PC4, PC5; ATC tags use PB3), Telink's drive-high-and-measure method: once after the config loads, then every 60 s while idle and disconnected; the advert is republished when the 10 mV value changes |
+| Temperature | the panel controller's own sensor, read at the start of every refresh (SSD16xx: temperature-sensor read after a `0xB1` load update; UC81xx: TSC); readings outside -30..70 C or exactly 0 are discarded. The TLSR825x has no usable die sensor |
+| Watchdog | 4 s, fed from the main loop and while the stack is serviced |
+| Logging | not wired |
 | Power | suspend between radio events; no deep-retention sleep (shared/ state is not in retention RAM) |
 
 ## Layout and the one rule it adds

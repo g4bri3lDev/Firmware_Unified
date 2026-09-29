@@ -141,6 +141,15 @@ static bool panel_start(const od_color_geometry_t *geometry)
         return false;
     }
 
+    /* The controller's own temperature sensor; ignored when the read-back is implausible
+     * (a panel without a readable sensor returns 0xFF or 0x00 on the idle data line). */
+    {
+        int8_t t = epd->drv->read_temp(epd);
+        if (t > -30 && t < 70 && t != 0) {
+            od_tlsr_set_temperature(t);
+        }
+    }
+
     memset(&s_xfer, 0, sizeof(s_xfer));
     s_xfer.active = true;
     s_xfer.epd = epd;
@@ -359,14 +368,17 @@ void od_boot_app_firmware_version(uint8_t *major, uint8_t *minor, uint8_t *patch
     *patch = (uint8_t)OD_TLSR_VERSION_PATCH;
 }
 
+float od_tlsr_battery_volts(void);
+float od_tlsr_temperature_c(void);
+
 float od_boot_app_battery_volts(void)
 {
-    return -1.0f;                            /* not measured on this target yet: prints "--V" */
+    return od_tlsr_battery_volts();          /* < 0 prints "--V" */
 }
 
 float od_boot_app_chip_temp_c(void)
 {
-    return -1000.0f;                         /* not measured yet: prints "--C" */
+    return od_tlsr_temperature_c();          /* <= -900 prints "--C" */
 }
 
 /* ------------------------------------------------------------------------------- nfc --- */

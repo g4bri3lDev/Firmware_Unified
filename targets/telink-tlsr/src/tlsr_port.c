@@ -125,3 +125,20 @@ uint8_t tlsr_port_crumb_boot(uint8_t *resets)
     *resets = count;
     return last;
 }
+
+uint16_t tlsr_port_battery_mv(uint8_t pin)
+{
+    unsigned int mv;
+    uint8_t port = pin >> 3, bit = pin & 7u;
+
+    if (!pin_valid(pin) || !((port == 1u) || (port == 2u && (bit == 4u || bit == 5u)))) {
+        return 0u;
+    }
+    adc_init();
+    adc_vbat_init(pin_of(pin));
+    adc_power_on_sar_adc(1);
+    mv = adc_sample_and_get_result();
+    adc_power_on_sar_adc(0);
+    tlsr_port_gpio_release(pin);
+    return (uint16_t)(mv > 0xFFFFu ? 0xFFFFu : mv);
+}

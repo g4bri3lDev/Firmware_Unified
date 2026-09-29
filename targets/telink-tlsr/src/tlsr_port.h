@@ -73,6 +73,11 @@ uint8_t tlsr_port_crumb_boot(uint8_t *resets);
  * link going down disarms it. */
 void tlsr_port_ota_arm(bool on);
 
+/* Supply voltage in mV, Telink's way on the 825x: the ADC pin is driven high (so it sits at the
+ * supply) and measured through the 1/8 prescaler with the chip's factory calibration, then
+ * released. Only PB0..PB7, PC4 and PC5 reach the ADC; any other pin returns 0. ATC tags use PB3. */
+uint16_t tlsr_port_battery_mv(uint8_t pin);
+
 void tlsr_port_mac(uint8_t out[6]);
 void tlsr_port_set_adv_msd(const uint8_t msd[16]);
 void tlsr_port_reboot(void);

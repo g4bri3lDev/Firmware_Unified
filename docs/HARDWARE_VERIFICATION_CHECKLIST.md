@@ -1164,6 +1164,9 @@ watchdog, breadcrumbs in MSD bytes 0..3). Evidence: the session transcript of 20
 - [x] Found: the OTA server aborts on the first packet when the image length is a multiple of 16; Telink
       images are body-padded to 16 bytes, so the length is 4 mod 16. `finish_image.py` pads accordingly
       and both it and `ble_ota.py` refuse any other length.
+- [x] **Battery voltage and temperature in the MSD**: with `battery_sense_pin` 11 (PB3) the advert
+      carried 3.00-3.02 V on the adapter's 3.3 V rail, and 21.0 C from the SSD16xx sensor read during
+      the boot-screen refresh. Not yet checked on a coin cell or against a meter.
 - [ ] Encrypted session (auth + CCM) — the AES engine known-answer test has not run on silicon; `ble_ota.py`
       sends ENTER_DFU in plaintext, so updating a keyed tag is not supported yet.
 - [ ] **One unexplained loss of the tag** (2026-09-29): after a boot screen, a failed connect, then no

@@ -31,6 +31,9 @@ void od_tlsr_config_reload(void);
 void od_tlsr_publish_msd(void);
 void od_tlsr_copy_msd(uint8_t out[16]);
 
+/* Panel-controller temperature, read whenever the panel is powered (od_xfer_tlsr.c). */
+void od_tlsr_set_temperature(int8_t celsius);
+
 uint32_t od_tlsr_link_tag(void);
 bool od_tlsr_notify_subscribed(void);
 

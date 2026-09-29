@@ -64,6 +64,16 @@ static uint8_t           s_dynamic[OD_ADVERT_DYNAMIC_LEN];
 static bool              s_boot_pending;
 static uint8_t           s_boot_row[256];
 static uint8_t           s_boot_qr[256];
+
+/* Battery: measured at boot and every BATTERY_PERIOD_MS on PowerOption.battery_sense_pin (0 mV =
+ * no pin or not measured). Temperature: the panel controller's sensor, refreshed whenever the
+ * panel is driven -- the chip's own sensor has no calibration in the SDK. */
+#define BATTERY_PERIOD_MS 60000u
+static uint16_t          s_battery_mv;
+static uint32_t          s_battery_at;
+static bool              s_battery_done;
+static bool              s_temp_valid;
+static int8_t            s_temp_c;
 static uint8_t           s_msd[OD_ADVERT_MSD_LEN];
 
 /* --------------------------------------------------------------------------- config --- */
@@ -118,15 +128,59 @@ void od_tlsr_config_reload(void)
 
 /* ------------------------------------------------------------------------ advertising --- */
 
+void od_tlsr_set_temperature(int8_t celsius)
+{
+    bool changed = !s_temp_valid || s_temp_c != celsius;
+
+    s_temp_valid = true;
+    s_temp_c = celsius;
+    if (changed) {
+        od_tlsr_publish_msd();
+    }
+}
+
+float od_tlsr_battery_volts(void)
+{
+    return s_battery_mv != 0u ? (float)s_battery_mv / 1000.0f : -1.0f;
+}
+
+float od_tlsr_temperature_c(void)
+{
+    return s_temp_valid ? (float)s_temp_c : -1000.0f;
+}
+
+/* Measure only when idle: the ADC runs off the same supply the panel and radio load, and a reading
+ * taken mid-refresh would report the sag, not the battery. */
+static void battery_poll(void)
+{
+    uint8_t pin = s_cfg.power_option.battery_sense_pin;
+    uint32_t now = od_hal_uptime_ms();
+    uint16_t mv;
+
+    if (s_cfg.loaded == false || pin == 0xFFu || tlsr_port_connected() ||
+        (s_battery_done && (uint32_t)(now - s_battery_at) < BATTERY_PERIOD_MS)) {
+        return;
+    }
+    s_battery_done = true;
+    s_battery_at = now;
+    mv = tlsr_port_battery_mv(pin);
+    /* 10 mV granularity on the wire: republish only when the advertised value would change. */
+    if (od_advert_battery_10mv_from_mv(mv) != od_advert_battery_10mv_from_mv(s_battery_mv)) {
+        s_battery_mv = mv;
+        od_tlsr_publish_msd();
+    }
+    s_battery_mv = mv;
+}
+
 void od_tlsr_publish_msd(void)
 {
     struct od_advert_inputs adv;
 
-    /* Battery and die temperature are not measured yet; the wire says 0 V and -40 C rather than
-     * inventing a value. */
+    /* Unmeasured values go out as 0 V and -40 C rather than invented ones. */
     memset(&adv, 0, sizeof(adv));
     adv.dynamic = s_dynamic;
-    adv.chip_temperature_c = OD_ADVERT_TEMP_MIN_C;
+    adv.chip_temperature_c = s_temp_valid ? (float)s_temp_c : OD_ADVERT_TEMP_MIN_C;
+    adv.battery_10mv = od_advert_battery_10mv_from_mv(s_battery_mv);
     adv.reboot_flag = s_reboot_flag;
     adv.loop_counter = s_msd_counter;
     od_advert_build(&adv, s_msd);
@@ -256,6 +310,8 @@ void od_tlsr_poll(void)
     uint8_t drained;
 
     (void)od_hal_uptime_ms();          /* keep the tick extension ahead of its 268 s wrap */
+
+    battery_poll();
 
     if (s_boot_pending && !tlsr_port_connected()) {
         s_boot_pending = false;
