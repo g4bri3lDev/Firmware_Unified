@@ -662,7 +662,7 @@ add_test(NAME tlsr_aes_modes COMMAND od_tlsr_aes_modes_test)
 set(TLSR_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../targets/telink-tlsr/src)
 add_executable(od_tlsr_display_test tlsr_display_test.c
                ${TLSR_SRC}/od_xfer_tlsr.c
-               ${TLSR_SRC}/epd/UC81xx.c ${TLSR_SRC}/epd/SSD16xx.c
+               ${TLSR_SRC}/epd/UC81xx.c ${TLSR_SRC}/epd/SSD16xx.c ${TLSR_SRC}/epd/TI97xx.c
                ${TLSR_SRC}/epd/epd_models.c ${TLSR_SRC}/epd/epd_io.c
                ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/core/od_color.c
                ${CMAKE_CURRENT_SOURCE_DIR}/../../shared/core/od_boot_screen.c
