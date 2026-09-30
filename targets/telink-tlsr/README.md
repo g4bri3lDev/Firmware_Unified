@@ -34,6 +34,7 @@ offset 24, which is what both Telink OTA and ATC's `sendFw()` check before accep
 | 247-byte ATT MTU, 251-octet DLE | configured; slave requests DLE if the central has not after 1 s |
 | Advertising: flags + 16-byte OD MSD, scan response `ODxxxxxx` + UUID `0x2446` | implemented; battery and temperature filled as below, 0 V / -40 C until first measured |
 | Shared dispatch, RX ring, TX queue, config read/write/chunk/clear, session auth + CCM | implemented over shared/ |
+| Identity strings | DataExtended (0x2C) parsed and stored; manufacturer and model head the boot screen on panels of 400x300 and up |
 | Config storage | two 4 KB sectors at `0x7A000` (see `od_hal_tlsr.c` for the flash map) |
 | Crypto | TLSR825x AES engine + `od_aes_modes.c` (CMAC, CCM); engine byte order found by a FIPS-197 known-answer test at first use |
 | Randomness | AES-CTR generator seeded from the SDK's analog-noise `rand()`; the noise source is unmeasured |

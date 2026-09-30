@@ -1235,7 +1235,11 @@ ATC config and the generated OpenDisplay config backed up before the install.
       faster software SPI.
 - [ ] Battery cost of 48 MHz not measured (more current awake, less time awake; the PLL may
       re-lock at every wake). 24 / 32 MHz are the fallbacks.
-- [ ] 48 MHz on the three smaller tags (still on the 16 MHz build).
+- [x] 48 MHz on the 2.66" and the 2.0" BWY (updated with the identity-strings build); the
+      Nebular is still on the 16 MHz build.
+- [x] **Identity strings (DataExtended 0x2C)**: written and read back on the 2.66", the 2.0" BWY and
+      the 9.7"; the 9.7" boot screen shows manufacturer and model in its header. The smaller panels'
+      layout has no header, so there they are stored only.
 - [x] Boot screen QR: was 1-pixel modules at 960 x 672 (shared layout, DIVERGENCE_MATRIX § 29); now
       a readable QR beside large text, confirmed on the glass.
 - [x] Battery reading on PB0 (2.93 V on the board's batteries).

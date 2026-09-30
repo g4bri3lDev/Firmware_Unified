@@ -40,7 +40,7 @@ set(OD_PROFILE_TELINK
     OD_CONFIG_WITH_TOUCH=0
     OD_CONFIG_WITH_BUZZER=0
     OD_CONFIG_WITH_WIFI=0
-    OD_CONFIG_WITH_DATA_EXTENDED=0)
+    OD_CONFIG_WITH_DATA_EXTENDED=1)   # identity strings (0x2C); 288 B, and the boot-screen header lines
 set(OD_TELINK_DEFS ${OD_PROFILE_TELINK})
 od_select_log_profile(info OD_TELINK_DEFS)
 
