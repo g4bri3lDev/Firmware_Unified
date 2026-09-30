@@ -258,6 +258,7 @@ static void boot_screen(void)
     bufs.qr = s_boot_qr;
     bufs.qr_len = sizeof(s_boot_qr);
     s_dynamic[4] = 0xB1u;
+    od_tlsr_publish_msd();            /* a large panel renders and refreshes for a minute or more */
     od_tlsr_boot_fail = 0u;
     ok = od_boot_screen_render(&s_cfg, od_session_app_security(), &bufs);
     s_dynamic[4] = ok ? 0xB2u : (od_tlsr_boot_fail != 0u ? od_tlsr_boot_fail : 0xEFu);

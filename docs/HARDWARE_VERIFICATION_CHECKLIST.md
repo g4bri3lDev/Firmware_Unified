@@ -1225,6 +1225,11 @@ ATC config and the generated OpenDisplay config backed up before the install.
       dispatch outlasted the 4 s watchdog. The panel write now services the stack every 2 KB.
 - [x] Timing (test image, 161 KB -> 1.4 KB zlib): ~20 s transfer, almost all of it bit-banged SPI
       (~8 KB/s); ~33 s refresh.
+- [x] **Faster panel SPI**: the TLSR825x SPI master only exists on PA2/3/4 and PB7/PB6/PD7; the ATC
+      boards clock on PB5 and send on PB6, so it cannot be used. `tlsr_port_spi_out()` instead
+      bit-bangs from RAM with direct register stores (two per bit when clock and data share a
+      port, as on all four boards). Same test image: transfer ~20 s -> ~7 s, image correct.
+- [x] Boot-screen status 0xB1 is now advertised while drawing (the 9.7" takes ~110 s at 16 MHz).
 - [ ] Boot screen: QR code rendered very small at 960 x 672 (shared layout).
 - [ ] Battery reading on PB0; the second busy line (PC0) is unused, as in ATC.
 - [ ] Rollback to ATC over BLE (`ble_ota.py` with ATC's image) or SWS (`--invalidate-bank2`): not exercised.

@@ -69,6 +69,19 @@ void tlsr_port_gpio_write(uint8_t pin, bool level)
     s_level[pin] = level ? 1u : 0u;
 }
 
+/* The port's fast SPI path, replayed as the same edges so the decoder above sees every bit. */
+void tlsr_port_spi_out(uint8_t mosi, uint8_t sclk, const uint8_t *buf, uint32_t n)
+{
+    while (n-- != 0u) {
+        uint8_t b = *buf++, bit;
+        for (bit = 0x80u; bit != 0u; bit >>= 1) {
+            tlsr_port_gpio_write(mosi, (b & bit) != 0u);
+            tlsr_port_gpio_write(sclk, true);
+            tlsr_port_gpio_write(sclk, false);
+        }
+    }
+}
+
 /* The panel's temperature register, clocked out MSB first on MOSI when the driver reads. */
 static uint8_t s_temp_byte = 23u;
 static uint8_t s_read_bit;

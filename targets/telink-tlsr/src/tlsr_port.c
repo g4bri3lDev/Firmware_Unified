@@ -97,6 +97,41 @@ void tlsr_port_gpio_release(uint8_t pin)
     gpio_setup_up_down_resistor(pin_of(pin), PM_PIN_UP_DOWN_FLOAT);
 }
 
+_attribute_ram_code_ void tlsr_port_spi_out(uint8_t mosi, uint8_t sclk, const uint8_t *buf, uint32_t n)
+{
+    GPIO_PinTypeDef pm = pin_of(mosi), pc = pin_of(sclk);
+    volatile u8 *om = &reg_gpio_out(pm);
+    volatile u8 *oc = &reg_gpio_out(pc);
+    u8 bm = (u8)(pm & 0xff), bc = (u8)(pc & 0xff);
+    u8 i;
+
+    if (!pin_valid(mosi) || !pin_valid(sclk)) return;
+    if (om == oc) {
+        while (n-- != 0u) {
+            u8 b = *buf++;
+            /* Re-read once per byte, so a pin on the same port changed meanwhile is kept. */
+            u8 base = (u8)(*om & (u8)~(bm | bc));
+            for (i = 0; i < 8u; i++) {
+                u8 v = (b & 0x80u) ? (u8)(base | bm) : base;
+                *om = v;                   /* clock low, data out */
+                *om = (u8)(v | bc);        /* rising edge: sampled */
+                b = (u8)(b << 1);
+            }
+            *om = base;
+        }
+        return;
+    }
+    while (n-- != 0u) {
+        u8 b = *buf++;
+        for (i = 0; i < 8u; i++) {
+            if (b & 0x80u) *om |= bm; else *om &= (u8)~bm;
+            *oc |= bc;
+            *oc &= (u8)~bc;
+            b = (u8)(b << 1);
+        }
+    }
+}
+
 void tlsr_port_led_park(uint8_t pin)
 {
     if (pin != TLSR_PORT_PIN_SWS) {

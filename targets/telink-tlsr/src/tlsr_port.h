@@ -50,6 +50,12 @@ void tlsr_port_gpio_write(uint8_t pin, bool level);
 bool tlsr_port_gpio_read(uint8_t pin);
 void tlsr_port_gpio_release(uint8_t pin);   /* input, floating: the lowest-leakage idle state */
 
+/* Bit-banged SPI out, mode 0, MSB first, `n` bytes: data set with the clock low, sampled on the
+ * rising edge. Both pins must already be outputs; chip-select is the caller's. Runs from RAM and
+ * writes the output registers directly -- when both pins share a port, two plain stores per
+ * bit. The TLSR825x SPI master only exists on fixed pin groups the ATC boards do not use. */
+void tlsr_port_spi_out(uint8_t mosi, uint8_t sclk, const uint8_t *buf, uint32_t n);
+
 /* An LED pin between flashes. PA7 is also SWS, the wired-flashing line (and the blue LED on ATC
  * boards): it goes back to its SWS function with the default 1 MOhm pull-up, so a tag stays
  * flashable over the wire whenever no pattern is running. Every other pin is released. */

@@ -119,20 +119,12 @@ void EPD_GPIO_Uninit(void)
 
 void EPD_SPI_Write(uint8_t* value, uint8_t len)
 {
-    uint8_t i, bit;
-
     if (s_mosi_is_input) {
         tlsr_port_gpio_output(s_pins.mosi, LOW);
         s_mosi_is_input = false;
     }
     cs_frame(true);
-    for (i = 0; i < len; i++) {
-        for (bit = 0x80u; bit != 0u; bit >>= 1) {
-            tlsr_port_gpio_write(s_pins.mosi, (value[i] & bit) != 0u);
-            tlsr_port_gpio_write(s_pins.sclk, HIGH);
-            tlsr_port_gpio_write(s_pins.sclk, LOW);
-        }
-    }
+    tlsr_port_spi_out(s_pins.mosi, s_pins.sclk, value, len);
     cs_frame(false);
 }
 
