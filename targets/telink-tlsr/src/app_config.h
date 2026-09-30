@@ -24,7 +24,7 @@
 #define ACL_CONN_MAX_RX_OCTETS           251
 #define ACL_CONN_MAX_TX_OCTETS           251
 
-#define CLOCK_SYS_CLOCK_HZ               16000000
+#define CLOCK_SYS_CLOCK_HZ               48000000
 #define MODULE_WATCHDOG_ENABLE           1
 #define WATCHDOG_INIT_TIMEOUT            4000    /* ms; main loop and long waits clear it */
 

@@ -1230,6 +1230,12 @@ ATC config and the generated OpenDisplay config backed up before the install.
       bit-bangs from RAM with direct register stores (two per bit when clock and data share a
       port, as on all four boards). Same test image: transfer ~20 s -> ~7 s, image correct.
 - [x] Boot-screen status 0xB1 is now advertised while drawing (the 9.7" takes ~110 s at 16 MHz).
+- [x] **CPU at 48 MHz** (was 16): same test upload transfers in ~2-3 s, boot screen start-to-drawn
+      ~55 s instead of ~112 s (the panel's own refresh is ~33 s of both); image correct with the
+      faster software SPI.
+- [ ] Battery cost of 48 MHz not measured (more current awake, less time awake; the PLL may
+      re-lock at every wake). 24 / 32 MHz are the fallbacks.
+- [ ] 48 MHz on the three smaller tags (still on the 16 MHz build).
 - [ ] Boot screen: QR code rendered very small at 960 x 672 (shared layout).
 - [ ] Battery reading on PB0; the second busy line (PC0) is unused, as in ATC.
 - [ ] Rollback to ATC over BLE (`ble_ota.py` with ATC's image) or SWS (`--invalidate-bank2`): not exercised.
