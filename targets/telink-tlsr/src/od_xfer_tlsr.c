@@ -26,6 +26,7 @@
 
 #define REFRESH_BARRIER_MS  2000u
 #define WRITE_CHUNK_MAX     255u      /* write_ram() takes a uint8_t length */
+#define SERVICE_EVERY_BYTES 2048u     /* panel bytes between stack/watchdog services */
 
 static struct {
     bool                active;
@@ -50,7 +51,27 @@ static const struct DisplayConfig *display_cfg(void)
  * its silent fallback to a 4.2" UC8176. Refuse both here. */
 static bool panel_type_known(uint16_t t)
 {
-    return t >= 1000u && t <= 1033u;   /* 1031 HS_266_BWR, 1032 HS_200_BWY, 1033 HS_350_BWY: provisional */
+    /* 1031 HS_266_BWR, 1032 HS_200_BWY, 1033 HS_350_BWY, 1034 TI_970_BWR: provisional */
+    return t >= 1000u && t <= 1034u;
+}
+
+/* Panels split over two controllers, whose right half is selected by DisplayConfig.cs_pin_2. */
+static bool panel_dual_cs(uint16_t t)
+{
+    return t == 1034u;
+}
+
+/* The second panel supply switch (ATC's enable1) of a dual-controller board, carried in
+ * SystemConfig.pwr_pin_2. That field is also the power-latch pin when a latch flag is set, and 0
+ * (PA0) in configs that never set it, so it is a panel enable only for such a panel on a board
+ * without a latch. */
+uint8_t od_tlsr_panel_pwr2(const struct od_config *cfg)
+{
+    if (cfg == NULL || cfg->display_count == 0u || !panel_dual_cs(cfg->displays[0].panel_ic_type) ||
+        (cfg->system_config.device_flags & (OD_DEVICE_FLAG_PWR_LATCH | OD_DEVICE_FLAG_PWR_LATCH_DFF)) != 0u) {
+        return TLSR_PORT_PIN_NONE;
+    }
+    return cfg->system_config.pwr_pin_2;
 }
 
 /* The imported lookup only knows 1000-1030 (and falls back to a 4.2" UC8176 otherwise); past
@@ -127,6 +148,10 @@ static bool panel_start(const od_color_geometry_t *geometry)
     pins.rst  = d->reset_pin;
     pins.busy = d->busy_pin;
     pins.pwr  = cfg->system_config.pwr_pin;
+    pins.pwr2 = od_tlsr_panel_pwr2(cfg);
+    /* cs_pin_2 was a reserved (zero) byte before protocol 1.4, and 0 is PA0: read it only for a
+     * model that has a second controller. */
+    pins.cs2  = panel_dual_cs(d->panel_ic_type) ? d->cs_pin_2 : TLSR_PORT_PIN_NONE;
     tlsr_port_stay_awake(TLSR_PORT_AWAKE_PANEL, true);    /* released by panel_down() */
     epd_io_configure(&pins);
     EPD_GPIO_Init();
@@ -169,6 +194,8 @@ bool od_xfer_app_begin_full(const od_color_geometry_t *geometry)
  * DTM/WRITE_RAM command), low nibble 0xF selects the black plane, anything else the red one. */
 static void write_plane(uint8_t plane, const uint8_t *p, uint32_t n)
 {
+    static uint32_t s_since_service;
+
     while (n != 0u) {
         uint8_t len = (uint8_t)(n > WRITE_CHUNK_MAX ? WRITE_CHUNK_MAX : n);
         uint8_t cfg = (uint8_t)((s_xfer.plane == (int8_t)plane ? 0x10u : 0x00u) |
@@ -178,6 +205,14 @@ static void write_plane(uint8_t plane, const uint8_t *p, uint32_t n)
         s_xfer.plane = (int8_t)plane;
         p += len;
         n -= len;
+        /* One compressed frame of a mostly blank image inflates to tens of KB, and bit-banged SPI
+         * into a large panel then outlasts the 4 s watchdog inside a single dispatch. Service the
+         * stack (which feeds it) as the refresh wait does. */
+        s_since_service += len;
+        if (s_since_service >= SERVICE_EVERY_BYTES) {
+            s_since_service = 0u;
+            tlsr_port_service_stack();
+        }
     }
 }
 

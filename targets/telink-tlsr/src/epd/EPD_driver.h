@@ -1,6 +1,6 @@
 /* Imported from Firmware_NRF52 EPD/EPD_driver.h at 71b870c12855b2bab4db11fdf1fb213818f3f3a8.
  * Changed here: the include block, EPD_DEBUG, the Arduino wrappers and the config loader, which
- * were nRF-specific, and three added model ids (SSD16XX_HS_266_BWR, SSD16XX_HS_200_BWY, UC8151_HS_350_BWY). Existing definitions unchanged. */
+ * were nRF-specific, and four added model ids (SSD16XX_HS_266_BWR, SSD16XX_HS_200_BWY, UC8151_HS_350_BWY, TI_970_BWR). Existing definitions unchanged. */
 #ifndef __EPD_DRIVER_H__
 #define __EPD_DRIVER_H__
 
@@ -126,6 +126,7 @@ typedef enum {
     DRV_IC_SSD1677 = 0x21,
     DRV_IC_JD79668 = 0x30,
     DRV_IC_JD79665 = 0x31,
+    DRV_IC_TI = 0x40,         /* Telink-target addition: dual-controller "TI" panels (TI97xx.c) */
 } epd_drv_ic_t;
 
 // Do not change the existing IDs!
@@ -172,6 +173,9 @@ typedef enum {
     /* Telink-target addition: Hanshow Nebular 350Y-N (ATC type 1, "350 HS BWY UC"), UC8151-class,
      * 184 sources x 384 gates, yellow as the second plane. PanelIC 1033, provisional. */
     UC8151_HS_350_BWY = 34,
+    /* Telink-target addition: 9.7" 960 x 672 BWR, two controllers (ATC type 14, "970 TI BWR"),
+     * driven by TI97xx.c with cs_pin_2 as the right half's chip-select. PanelIC 1034, provisional. */
+    TI_970_BWR = 35,
 } epd_model_id_t;
 
 struct epd_driver;

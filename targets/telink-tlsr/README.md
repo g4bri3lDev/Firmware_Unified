@@ -88,10 +88,18 @@ Hanshow glass found on ATC tags, all provisional numbers until opendisplay-proto
 | 1031 | `SSD16XX_HS_266_BWR` | 152 x 296, 8-pixel source offset | 9, "266 HS BWR SSD" | landscape | 1 (90) |
 | 1032 | `SSD16XX_HS_200_BWY` | 200 x 152 | 5, "200 HS BWY SSD" | portrait | 3 (270) |
 | 1033 | `UC8151_HS_350_BWY` | 184 x 384 | 1, "350 HS BWY UC" (Nebular 350Y-N) | landscape | 1 (90) |
+| 1034 | `TI_970_BWR` | 960 x 672, two controllers | 14, "970 TI BWR" (TC097SC1B8) | landscape | 2 (180) |
 
 Native size is sources x gates. ATC reports the 2.0" BWY glass as 152x200; driven that way only the
 152x152 overlap reached the glass. The two SSD glasses scan gates upward and write the B/W RAM
 uninverted; the UC glass runs on the imported UC8151 settings unchanged.
+
+The 9.7" (`epd/TI97xx.c`, ATC's TI sequence transcribed) is split over two controllers: each
+120-byte row goes 60 bytes to `cs_pin` (left) and 60 to `DisplayConfig.cs_pin_2` (right; JSON
+`reserved_pin_2`), and its second supply switch is `SystemConfig.pwr_pin_2`. Both are read only for
+this model -- `cs_pin_2` is a zero byte in older configs and `pwr_pin_2` is otherwise the
+power-latch pin. Panel parameters come from the master's OTP at every start; only the master's
+busy line is waited on, as ATC does.
 `rotation` makes the tag's natural face upright: hosts add it to the requested rotation and the
 boot screen is drawn with it, so images need no `--rotate`.
 
@@ -133,6 +141,9 @@ image byte lands after the right RAM command, once, followed by refresh and slee
 - **Over SWS, wired:** `tools/sws_flash.py --port /dev/cu.usbserial-XXXX build/telink-tlsr/opendisplay_tlsr.bin`.
   USB-serial TX -> 1..1.8 kOhm -> SWS (PA7, also the blue LED line), GND, 3.3 V logic. Write-only:
   no RX needed, nothing is verified over the wire. Works on any firmware state.
+  Going back to a firmware that lives at 0x0 (ATC) on a tag updated over the air: add
+  `--invalidate-bank2`, which erases the header of the image at 0x40000 so only the one just
+  written can boot.
   To power-cycle a tag powered from the adapter, unplug the adapter: removing only its 3.3 V wire
   leaves the chip half-powered through the idle-high TX line and the SWS pin.
 

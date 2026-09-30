@@ -1210,6 +1210,24 @@ A tag whose coin cell had died, cell disconnected and powered from the adapter's
       mirroring and all edges correct first time. Held landscape: rotation 1.
 - [x] **Boot screen** (`0xb2`), **battery / temperature** in the MSD (3.23 V on 3.3 V, 21.0 C),
       **LED pattern** red/green/blue.
+### Fourth board: 9.7" TC097SC1B8 BWR on an "OEPL - ATC1441 TLSR Port" board, ATC type 14 (2026-09-30)
+
+Ai-Thinker TB-03F (TLSR8253, 512 KB), two panel controllers; was ATC_331C41 (fw 111), now `OD3E3DE5`.
+ATC config and the generated OpenDisplay config backed up before the install.
+
+- [x] **Install from ATC** with `tools/atc_install.py` (first attempt timed out mid-transfer; ATC kept
+      its firmware; the second went through).
+- [x] **Boot screen** drawn through both controllers (`0xb2`, ~20 s from boot).
+- [x] **Image upload**, both halves and both colours correct; upright at rotation 2. OTP read on the
+      real panel (not the fallback path -- the image is not bit-reversed).
+- [x] Found and fixed: a compressed upload of a mostly blank frame reset the board every time at
+      ~55 %: one frame inflated to tens of KB, and bit-banging that into the panel inside a single
+      dispatch outlasted the 4 s watchdog. The panel write now services the stack every 2 KB.
+- [x] Timing (test image, 161 KB -> 1.4 KB zlib): ~20 s transfer, almost all of it bit-banged SPI
+      (~8 KB/s); ~33 s refresh.
+- [ ] Boot screen: QR code rendered very small at 960 x 672 (shared layout).
+- [ ] Battery reading on PB0; the second busy line (PC0) is unused, as in ATC.
+- [ ] Rollback to ATC over BLE (`ble_ota.py` with ATC's image) or SWS (`--invalidate-bank2`): not exercised.
 - [ ] 2.66" with rotation 1 in its config (converter emits it; the tag still has rotation 0 and
       takes `--rotate 90`).
 

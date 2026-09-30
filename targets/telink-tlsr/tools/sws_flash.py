@@ -11,6 +11,11 @@ and pvvx's TlsrComProg825x use: halt the MCU through 0x0602, drive the flash con
 0x0c/0x0d (SPI command bytes, chip-select), and restart through 0x006f.
 
     sws_flash.py --port /dev/cu.usbserial-0001 IMAGE.bin
+    sws_flash.py --port ... --invalidate-bank2 atc_fw.bin     going back to a firmware that lives at 0x0
+
+The image always goes to 0x0. A tag updated over the air may be running from the second bank
+(0x40000, where OpenDisplay's updates land), whose boot marker stays valid after this write;
+--invalidate-bank2 erases that bank's first sector so only the image just written can boot.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import serial
 
 SECTOR = 0x1000
 PAGE = 256
+BANK2 = 0x40000
 
 
 def sws_packet(addr: int, data: bytes) -> bytes:
@@ -131,6 +137,8 @@ def main() -> int:
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--activate-ms", type=int, default=1000)
     ap.add_argument("--no-reset", action="store_true", help="leave the MCU halted after writing")
+    ap.add_argument("--invalidate-bank2", action="store_true",
+                    help="also erase the header sector of the image at 0x40000, so it cannot boot")
     args = ap.parse_args()
 
     image = open(args.image, "rb").read()
@@ -153,6 +161,12 @@ def main() -> int:
             sws.erase_sector(addr)
         sws.write_page(addr, image[addr:addr + PAGE])
     print(f"\r100%  wrote {len(image)} bytes in {time.monotonic() - t0:.1f} s (not verified: SWS is write-only here)")
+    if args.invalidate_bank2:
+        if len(image) > BANK2:
+            print("refusing --invalidate-bank2: the image itself reaches 0x40000", file=sys.stderr)
+            return 1
+        sws.erase_sector(BANK2)
+        print("erased 0x040000: the second bank's image can no longer boot")
 
     if not args.no_reset:
         sws.reset()

@@ -24,7 +24,8 @@
 #define PWR_ON  (OD_TLSR_PWR_ACTIVE_LOW ? LOW : HIGH)
 #define PWR_OFF (OD_TLSR_PWR_ACTIVE_LOW ? HIGH : LOW)
 
-static struct epd_io_pins s_pins = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+static struct epd_io_pins s_pins = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+static uint8_t s_cs_mask = EPD_IO_CS_AUTO;
 static uint16_t m_driver_refs = 0;
 static bool s_mosi_is_input;
 static bool s_busy_timed_out;
@@ -40,6 +41,26 @@ void epd_port_delay_ms(uint32_t ms)
 void epd_io_configure(const struct epd_io_pins *pins)
 {
     s_pins = *pins;
+}
+
+void epd_io_cs_manual(uint8_t mask)
+{
+    s_cs_mask = mask;
+    if (mask == EPD_IO_CS_AUTO) {
+        tlsr_port_gpio_write(s_pins.cs, HIGH);
+        tlsr_port_gpio_write(s_pins.cs2, HIGH);
+        return;
+    }
+    tlsr_port_gpio_write(s_pins.cs, (mask & 0x01u) == 0u);
+    tlsr_port_gpio_write(s_pins.cs2, (mask & 0x02u) == 0u);
+}
+
+/* Per-transfer framing only in auto mode; in manual mode the lines stay as set. */
+static void cs_frame(bool assert)
+{
+    if (s_cs_mask == EPD_IO_CS_AUTO) {
+        tlsr_port_gpio_write(s_pins.cs, !assert);
+    }
 }
 
 void epd_io_park_power(uint8_t pin)
@@ -60,9 +81,14 @@ void EPD_GPIO_Init(void)
     if (s_pins.pwr != TLSR_PORT_PIN_NONE) {
         tlsr_port_gpio_output(s_pins.pwr, PWR_ON);
     }
+    if (s_pins.pwr2 != TLSR_PORT_PIN_NONE) {
+        tlsr_port_gpio_output(s_pins.pwr2, PWR_ON);
+    }
+    s_cs_mask = EPD_IO_CS_AUTO;
     tlsr_port_gpio_output(s_pins.dc, LOW);
     tlsr_port_gpio_output(s_pins.rst, HIGH);
     tlsr_port_gpio_output(s_pins.cs, HIGH);
+    tlsr_port_gpio_output(s_pins.cs2, HIGH);
     tlsr_port_gpio_output(s_pins.sclk, LOW);
     tlsr_port_gpio_output(s_pins.mosi, LOW);
     tlsr_port_gpio_input(s_pins.busy, TLSR_PORT_PULL_NONE);
@@ -75,13 +101,17 @@ void EPD_GPIO_Uninit(void)
     if (--m_driver_refs > 0) return;
     tlsr_port_gpio_write(s_pins.dc, LOW);
     tlsr_port_gpio_write(s_pins.cs, LOW);
+    tlsr_port_gpio_write(s_pins.cs2, LOW);
     tlsr_port_gpio_write(s_pins.rst, LOW);
     /* Held at the off level, not released: a floating enable can half-open an active-low
      * switch and leak through the panel. */
     if (s_pins.pwr != TLSR_PORT_PIN_NONE) tlsr_port_gpio_write(s_pins.pwr, PWR_OFF);
+    if (s_pins.pwr2 != TLSR_PORT_PIN_NONE) tlsr_port_gpio_write(s_pins.pwr2, PWR_OFF);
+    s_cs_mask = EPD_IO_CS_AUTO;
     tlsr_port_gpio_release(s_pins.mosi);
     tlsr_port_gpio_release(s_pins.sclk);
     tlsr_port_gpio_release(s_pins.cs);
+    tlsr_port_gpio_release(s_pins.cs2);
     tlsr_port_gpio_release(s_pins.dc);
     tlsr_port_gpio_release(s_pins.rst);
     tlsr_port_gpio_release(s_pins.busy);
@@ -95,7 +125,7 @@ void EPD_SPI_Write(uint8_t* value, uint8_t len)
         tlsr_port_gpio_output(s_pins.mosi, LOW);
         s_mosi_is_input = false;
     }
-    tlsr_port_gpio_write(s_pins.cs, LOW);
+    cs_frame(true);
     for (i = 0; i < len; i++) {
         for (bit = 0x80u; bit != 0u; bit >>= 1) {
             tlsr_port_gpio_write(s_pins.mosi, (value[i] & bit) != 0u);
@@ -103,7 +133,7 @@ void EPD_SPI_Write(uint8_t* value, uint8_t len)
             tlsr_port_gpio_write(s_pins.sclk, LOW);
         }
     }
-    tlsr_port_gpio_write(s_pins.cs, HIGH);
+    cs_frame(false);
 }
 
 void EPD_SPI_Read(uint8_t* value, uint8_t len)
@@ -114,7 +144,7 @@ void EPD_SPI_Read(uint8_t* value, uint8_t len)
         tlsr_port_gpio_input(s_pins.mosi, TLSR_PORT_PULL_NONE);
         s_mosi_is_input = true;
     }
-    tlsr_port_gpio_write(s_pins.cs, LOW);
+    cs_frame(true);
     for (i = 0; i < len; i++) {
         b = 0u;
         for (bit = 0x80u; bit != 0u; bit >>= 1) {
@@ -124,7 +154,7 @@ void EPD_SPI_Read(uint8_t* value, uint8_t len)
         }
         value[i] = b;
     }
-    tlsr_port_gpio_write(s_pins.cs, HIGH);
+    cs_frame(false);
 }
 
 void EPD_WriteCmd(uint8_t cmd) {

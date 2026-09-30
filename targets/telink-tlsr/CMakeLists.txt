@@ -72,6 +72,7 @@ add_library(od_side OBJECT
     # Panel drivers imported from Firmware_NRF52 (EPD/, 71b870c1); epd_io.c is their I/O here.
     ${SRC}/epd/UC81xx.c
     ${SRC}/epd/SSD16xx.c
+    ${SRC}/epd/TI97xx.c
     ${SRC}/epd/epd_models.c
     ${SRC}/epd/epd_io.c)
 target_include_directories(od_side PRIVATE ${OD_SHARED_INCLUDE_DIRS} ${SRC} ${SRC}/epd)

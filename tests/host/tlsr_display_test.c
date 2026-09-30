@@ -27,10 +27,10 @@
 
 /* --------------------------------------------------------------- fake SPI wire decoder --- */
 
-enum { P_MOSI = 1, P_SCLK = 2, P_CS = 3, P_DC = 4, P_RST = 5, P_BUSY = 6, P_PWR = 7 };
+enum { P_MOSI = 1, P_SCLK = 2, P_CS = 3, P_DC = 4, P_RST = 5, P_BUSY = 6, P_PWR = 7, P_CS2 = 8 };
 
-#define LOG_MAX 70000u
-static struct { uint8_t dc, b; } s_log[LOG_MAX];
+#define LOG_MAX 200000u
+static struct { uint8_t dc, b, cs; } s_log[LOG_MAX];   /* cs: bit 0 = P_CS low, bit 1 = P_CS2 low */
 static uint32_t s_log_n;
 static uint8_t  s_level[32];
 static uint8_t  s_shift, s_bits;
@@ -50,16 +50,17 @@ void tlsr_port_gpio_release(uint8_t pin) { if (pin == P_PWR) s_pwr_driven = fals
 void tlsr_port_gpio_write(uint8_t pin, bool level)
 {
     if (pin >= 32u) return;
-    if (pin == P_CS && level && s_bits != 0u) {
+    if ((pin == P_CS || pin == P_CS2) && level && s_bits != 0u) {
         s_bits = 0u;                               /* partial byte discarded at CS high */
     }
-    if (pin == P_SCLK && level && !s_level[P_SCLK] && !s_level[P_CS]) {
+    if (pin == P_SCLK && level && !s_level[P_SCLK] && (!s_level[P_CS] || !s_level[P_CS2])) {
         s_shift = (uint8_t)((s_shift << 1) | (s_level[P_MOSI] ? 1u : 0u));
         if (++s_bits == 8u) {
             if (s_log_n == 0u) s_pwr_at_first_byte = s_level[P_PWR];
             if (s_log_n < LOG_MAX) {
                 s_log[s_log_n].dc = s_level[P_DC];
                 s_log[s_log_n].b = s_shift;
+                s_log[s_log_n].cs = (uint8_t)((s_level[P_CS] ? 0u : 1u) | (s_level[P_CS2] ? 0u : 2u));
                 s_log_n++;
             }
             s_bits = 0u;
@@ -129,6 +130,7 @@ static void set_panel(uint16_t ic, uint16_t w, uint16_t h, uint8_t scheme)
     s_cfg.system_config.pwr_pin = 0xFFu;
     memset(s_level, 0, sizeof(s_level));
     s_level[P_CS] = 1u;
+    s_level[P_CS2] = 1u;
     s_log_n = 0u;
     s_bits = 0u;
     s_busy_stuck = false;
@@ -170,8 +172,8 @@ static uint32_t data_after(long at, const uint8_t **unused, uint8_t *out, uint32
     return n;
 }
 
-static uint8_t s_img[30000];
-static uint8_t s_got[30000];
+static uint8_t s_img[170000];
+static uint8_t s_got[170000];
 
 static void fill(uint32_t n, uint32_t seed)
 {
@@ -395,6 +397,75 @@ static void test_hanshow_350_bwy(void)
     CHECK(cmd_after(UC81xx_DRF, dtm2));
 }
 
+/* 9.7" dual-controller BWR (ATC type 14): each 120-byte row splits 60 / 60 across the two
+ * chip-selects; plane 0 is inverted (the controller takes 1 = black), plane 1 goes as is. */
+static void check_ti_plane(uint8_t cmd, const uint8_t *src, bool invert, bool reversed)
+{
+    const uint32_t plane = 120u * 672u;
+    long at = find_cmd(cmd, 0u);
+    uint32_t i, n = 0u, bad = 0u;
+
+    CHECK(at >= 0 && s_log[at].cs == 3u);                  /* command to both halves */
+    for (i = (uint32_t)at + 1u; i < s_log_n && s_log[i].dc == 1u && n < plane; ++i, ++n) {
+        uint32_t col = n % 120u;
+        uint8_t want = invert ? (uint8_t)~src[n] : src[n];
+        if (reversed) {
+            uint8_t r = 0u, b;
+            for (b = 0u; b < 8u; b++) if (want & (1u << b)) r |= (uint8_t)(0x80u >> b);
+            want = r;
+        }
+        if (s_log[i].b != want || s_log[i].cs != (col < 60u ? 1u : 2u)) bad++;
+    }
+    CHECK(n == plane);
+    CHECK(bad == 0u);
+}
+
+static void test_ti_970(void)
+{
+    bool completed = false;
+    const uint32_t plane = 120u * 672u;
+
+    CASE("TI 9.7 BWR: OTP read, rows split 60 / 60 across cs and cs2, both planes");
+    set_panel(1034u, 960u, 672u, OD_COLOR_SCHEME_BWR);
+    s_cfg.displays[0].cs_pin_2 = P_CS2;
+    s_cfg.system_config.pwr_pin_2 = 0xFFu;
+    s_busy_idle_level = true;                          /* busy is low while refreshing */
+    s_temp_byte = 0x23u;                               /* OTP reads back non-blank */
+    s_read_bit = 0u;
+    fill(2u * plane, 13u);
+    CHECK(begin());
+    CHECK(find_cmd(0xB9, 0u) >= 0 && s_log[find_cmd(0xB9, 0u)].cs == 1u);   /* OTP from the master */
+    CHECK(find_cmd(0x13, 0u) >= 0 && s_log[find_cmd(0x13, 0u) + 1].b == 0x23u);   /* OTP values used */
+    CHECK(stream(2u * plane, 244u));
+    CHECK(od_xfer_app_refresh(0u, &completed));
+    CHECK(completed);
+    check_ti_plane(0x10, s_img, true, false);
+    check_ti_plane(0x11, s_img + plane, false, false);
+    CHECK(cmd_after(0x15, find_cmd(0x11, 0u)));        /* refresh started after the image */
+    CHECK(s_level[P_CS] == 0u && s_level[P_CS2] == 0u); /* powered down, lines parked low */
+
+    CASE("TI 9.7: blank OTP falls back to ATC's 9.7 values and bit-reversed data");
+    set_panel(1034u, 960u, 672u, OD_COLOR_SCHEME_BWR);
+    s_cfg.displays[0].cs_pin_2 = P_CS2;
+    s_cfg.system_config.pwr_pin_2 = 0xFFu;
+    s_busy_idle_level = true;
+    s_temp_byte = 0xFFu;
+    s_read_bit = 0u;
+    CHECK(begin());
+    CHECK(find_cmd(0x13, 0u) >= 0 && s_log[find_cmd(0x13, 0u) + 6].b == 0x02u);   /* 0x1A default */
+    CHECK(stream(2u * plane, 244u));
+    CHECK(od_xfer_app_refresh(0u, &completed));
+    check_ti_plane(0x10, s_img, true, true);
+    s_temp_byte = 23u;
+
+    CASE("cs_pin_2 is ignored for single-controller panels (0 there is PA0, not a pin)");
+    set_panel(1031u, 152u, 296u, OD_COLOR_SCHEME_BWR);
+    s_level[0] = 7u;                                   /* sentinel: never written */
+    CHECK(begin());
+    od_xfer_app_abort(OD_XFER_ABORT_REPLY_FAILED);
+    CHECK(s_level[0] == 7u);
+}
+
 /* The boot screen through the real hooks, drivers and SPI, on the Hanshow 2.66" config. */
 static void test_boot_screen(void)
 {
@@ -431,7 +502,7 @@ static void test_refusals(void)
     bool completed = true;
 
     CASE("unknown panel type refused before any pin moves");
-    set_panel(1034u, 400u, 300u, OD_COLOR_SCHEME_BWR);
+    set_panel(1035u, 400u, 300u, OD_COLOR_SCHEME_BWR);
     CHECK(!od_xfer_app_panel_info(&info));
     CHECK(s_log_n == 0u);
 
@@ -477,6 +548,7 @@ int main(void)
     test_hanshow_266_window();
     test_hanshow_200_bwy_window();
     test_hanshow_350_bwy();
+    test_ti_970();
     test_boot_screen();
     test_refusals();
     return OD_CHECK_REPORT_NONEMPTY("tlsr_display", 40u);

@@ -26,6 +26,9 @@ const struct od_config *od_tlsr_config(void);
 /* LED instance `instance` of the live config, or NULL. Mutable: its reserved[] holds the running
  * LED pattern, whose mode nibble a config reload clears -- which is what stops a pattern. */
 struct LedConfig *od_tlsr_led(uint8_t instance);
+/* SystemConfig.pwr_pin_2 when it is the second panel supply switch (dual-controller panels on a
+ * board without a power latch), else 0xFF. */
+uint8_t od_tlsr_panel_pwr2(const struct od_config *cfg);
 bool od_tlsr_config_save(const uint8_t *data, uint32_t len);
 bool od_tlsr_config_load(uint8_t *out, uint32_t *len);
 bool od_tlsr_config_clear(void);

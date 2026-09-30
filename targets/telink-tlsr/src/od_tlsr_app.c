@@ -130,6 +130,7 @@ void od_tlsr_config_reload(void)
     }
     (void)od_config_parse(&s_cfg, od_span_make(s_work.assembler.buffer, len), &report);
     epd_io_park_power(s_cfg.system_config.pwr_pin);
+    epd_io_park_power(od_tlsr_panel_pwr2(&s_cfg));
 }
 
 /* ------------------------------------------------------------------------ advertising --- */
