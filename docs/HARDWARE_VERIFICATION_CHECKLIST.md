@@ -1236,8 +1236,10 @@ ATC config and the generated OpenDisplay config backed up before the install.
 - [ ] Battery cost of 48 MHz not measured (more current awake, less time awake; the PLL may
       re-lock at every wake). 24 / 32 MHz are the fallbacks.
 - [ ] 48 MHz on the three smaller tags (still on the 16 MHz build).
-- [ ] Boot screen: QR code rendered very small at 960 x 672 (shared layout).
-- [ ] Battery reading on PB0; the second busy line (PC0) is unused, as in ATC.
+- [x] Boot screen QR: was 1-pixel modules at 960 x 672 (shared layout, DIVERGENCE_MATRIX § 29); now
+      a readable QR beside large text, confirmed on the glass.
+- [x] Battery reading on PB0 (2.93 V on the board's batteries).
+- [ ] The second busy line (PC0) is unused, as in ATC; not seen to matter.
 - [ ] Rollback to ATC over BLE (`ble_ota.py` with ATC's image) or SWS (`--invalidate-bank2`): not exercised.
 - [ ] 2.66" with rotation 1 in its config (converter emits it; the tag still has rotation 0 and
       takes `--rotate 90`).
